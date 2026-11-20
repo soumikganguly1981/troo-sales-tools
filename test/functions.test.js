@@ -67,3 +67,11 @@ test('stip_save_estimate patches only est_comms properties', async () => {
   assert.equal(sent.properties.est_comms_total, 24933.33);
   assert.equal((await main({ parameters: { dealId: 'abc', supplier: 'x' } })).statusCode, 400);
 });
+
+test('function bundles are self-contained (no relative requires)', () => {
+  const fs = require('node:fs');
+  for (const f of ['stipCalculate', 'stipDealContext', 'stipSaveEstimate']) {
+    const code = fs.readFileSync(`${__dirname}/../src/app/functions/${f}.js`, 'utf8');
+    assert.doesNotMatch(code, /require\(["']\.\.?\//, `${f}.js still requires a local file`);
+  }
+});

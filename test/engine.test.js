@@ -3,8 +3,8 @@
 // independent Python evaluation of the same tables.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { rank, wholeMonthsBetween, addMonths, monthsFit } = require('../src/app/functions/lib/engine');
-const { normaliseRow } = require('../src/app/functions/lib/hubdb');
+const { rank, wholeMonthsBetween, addMonths, monthsFit } = require('../functions-src/lib/engine');
+const { normaliseRow } = require('../functions-src/lib/hubdb');
 const payload = require('./fixtures/stips-2026-11.json');
 
 const toTable = (t) => t.rows.map((r) => normaliseRow(r, t.columns));
