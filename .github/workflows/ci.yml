@@ -45,4 +45,4 @@ jobs:
       - name: Validate
         run: hs project validate --use-env
       - name: Upload and deploy
-        run: hs project upload --use-env --json
+        run: hs project upload --use-env --json --forceCreate
