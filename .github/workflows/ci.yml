@@ -14,7 +14,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Engine and function tests, shared UI in sync
+      - run: npm ci --no-audit --no-fund
+      - name: Engine and function tests, bundles and shared UI in sync
         run: npm run check
       - name: Type-check the card and the page
         run: |
@@ -38,7 +39,7 @@ jobs:
       - name: Check the HubSpot key is set
         run: |
           if [ -z "$HUBSPOT_PERSONAL_ACCESS_KEY" ] || [ -z "$HUBSPOT_ACCOUNT_ID" ]; then
-            echo "::error::Add the HUBSPOT_PERSONAL_ACCESS_KEY secret and HUBSPOT_ACCOUNT_ID variable to the hubspot-production environment"
+            echo "::error::Add the HUBSPOT_PERSONAL_ACCESS_KEY secret and HUBSPOT_ACCOUNT_ID variable to the HUBSPOT_PERSONAL_ACCESS_KEY environment"
             exit 1
           fi
       - run: npm install -g @hubspot/cli@latest
