@@ -1,0 +1,8 @@
+{
+  "uid": "stip_calculate",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/stipCalculate.js",
+    "secretKeys": []
+  }
+}

@@ -1,0 +1,36 @@
+band_key,applies_to,fuel,priority,aq_min_kwh,aq_max_kwh,sectors,start_on_or_before,start_after,months_to_start_gt,role,bg_trial,comms_p_per_kwh,note
+bg_matrix_any_10,bg_matrix,any,10,,,,,,,any,on,3,3p during the trial
+bg_matrix_e_20,bg_matrix,E,20,,,,,,,any,any,2.5,Outside the trial
+bg_matrix_g_20,bg_matrix,G,20,,,,,,,any,any,1.5,Outside the trial
+bg_bespoke_any_10,bg_bespoke,any,10,,,,,,,any,on,3,3p during the trial
+bg_bespoke_e_20,bg_bespoke,E,20,,,,,,,any,any,2.5,Outside the trial
+bg_bespoke_g_20,bg_bespoke,G,20,,,,,,,any,any,1.5,Outside the trial
+bg_lite_e_10,bg_lite,E,10,,,,,,,any,any,2.5,Not part of the trial
+bg_lite_g_10,bg_lite,G,10,,,,,,,any,any,1.5,Not part of the trial
+corona_e_10,corona,E,10,,,,,,,any,any,4,Max comms
+corona_g_10,corona,G,10,,,,,,,any,any,3,Max comms
+crown_any_10,crown,any,10,,,,,,,any,any,2,Max comms
+edf_matrix_any_10,edf_matrix,any,10,,,,,,,any,any,2,Max comms
+drax_e_10,drax,E,10,,,,,,,any,any,2,2p in unit rate or equivalent in SC; above 2p case by case
+engie_any_10,engie,any,10,,,charity,,,,any,any,0.5,Charity rate
+engie_e_20,engie,E,20,,999999,,,,,any,any,4,Under 1GWh
+engie_e_30,engie,E,30,,,,,,,any,any,2,1GWh and over
+engie_g_20,engie,G,20,,999999,,,,,any,any,2.5,Under 1GWh
+engie_g_30,engie,G,30,,,,,,,any,any,1.5,1GWh and over
+npower_any_10,npower,any,10,,500000,,2028-12-31,,,any,any,4,"Start in MTP, up to 500MWh"
+npower_any_20,npower,any,20,,500000,,,2028-12-31,,se,any,2.5,"Post MTP, Sales Exec, up to 500MWh"
+npower_any_30,npower,any,30,,500000,,,2028-12-31,,tm,any,4,"Post MTP, TM/BDM, up to 500MWh"
+npower_any_11,npower,any,11,500001,4000000,,2028-12-31,,,any,any,3.5,"Start in MTP, up to 4GWh"
+npower_any_21,npower,any,21,500001,4000000,,,2028-12-31,,se,any,2,"Post MTP, Sales Exec, up to 4GWh"
+npower_any_31,npower,any,31,500001,4000000,,,2028-12-31,,tm,any,3.5,"Post MTP, TM/BDM, up to 4GWh"
+npower_any_12,npower,any,12,4000001,,,2028-12-31,,,any,any,2.5,"Start in MTP, over 4GWh"
+npower_any_22,npower,any,22,4000001,,,,2028-12-31,,se,any,1.5,"Post MTP, Sales Exec, over 4GWh"
+npower_any_32,npower,any,32,4000001,,,,2028-12-31,,tm,any,2.5,"Post MTP, TM/BDM, over 4GWh"
+shell_any_10,shell,any,10,,,,,,,any,any,2.5,Higher on request (Arjun or Nathan)
+smartest_mm_e_10,smartest_mm,E,10,,,,,,,any,any,3,Sheet shows 3p; volume tiers to be confirmed
+smartest_sme_any_10,smartest_sme,any,10,,,,,,6,any,any,2.5,Start more than 6 months out
+smartest_sme_any_20,smartest_sme,any,20,,,,,,,any,any,3,Standard
+total_e_10,total,E,10,,,"charity,schoolnhs,hospital",,,,any,any,1.5,"School, NHS or charity rate"
+total_g_10,total,G,10,,,"charity,schoolnhs,hospital",,,,any,any,1,"School, NHS or charity rate"
+total_e_20,total,E,20,,,,,,,any,any,4,Max comms
+total_g_20,total,G,20,,,,,,,any,any,3,Max comms

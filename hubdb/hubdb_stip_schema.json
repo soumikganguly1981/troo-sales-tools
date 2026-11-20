@@ -1,0 +1,601 @@
+{
+  "stip_month": "2026-11-01",
+  "tables": [
+    {
+      "name": "stip_products",
+      "label": "Stipulations: supplier products",
+      "description": "One row per supplier product per fuel. Eligibility limits, curve end and pricing window. Updated monthly from the stipulation sheet.",
+      "useForPages": false,
+      "allowPublicApiAccess": false,
+      "columns": [
+        {
+          "name": "product_key",
+          "label": "Product key",
+          "type": "TEXT",
+          "description": "Unique key: family + fuel, e.g. bg_matrix_e"
+        },
+        {
+          "name": "product_family",
+          "label": "Product family",
+          "type": "TEXT",
+          "description": "Family key shared across fuels, e.g. bg_matrix"
+        },
+        {
+          "name": "supplier_group",
+          "label": "Supplier group",
+          "type": "TEXT",
+          "description": "Matches the Current supplier option value: bg, corona, crown, drax, edf, engie, npower, shell, smartest, total"
+        },
+        {
+          "name": "supplier",
+          "label": "Supplier",
+          "type": "TEXT",
+          "description": "Display name"
+        },
+        {
+          "name": "product",
+          "label": "Product",
+          "type": "TEXT",
+          "description": "Display product name (blank if the supplier has one product)"
+        },
+        {
+          "name": "fuel",
+          "label": "Fuel",
+          "type": "SELECT",
+          "description": "E = electricity, G = gas",
+          "options": [
+            {
+              "name": "E",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "G",
+              "type": "option",
+              "order": 1
+            }
+          ]
+        },
+        {
+          "name": "min_aq_kwh",
+          "label": "Min aq kwh",
+          "type": "NUMBER",
+          "description": "Minimum annual consumption (new business)"
+        },
+        {
+          "name": "min_aq_renewal_kwh",
+          "label": "Min aq renewal kwh",
+          "type": "NUMBER",
+          "description": "Minimum annual consumption on renewals; blank = same as new business"
+        },
+        {
+          "name": "max_aq_kwh",
+          "label": "Max aq kwh",
+          "type": "NUMBER",
+          "description": "Maximum annual consumption; blank = no maximum"
+        },
+        {
+          "name": "max_aq_exclusive",
+          "label": "Max aq exclusive",
+          "type": "BOOLEAN",
+          "description": "True = AQ must be strictly below max_aq_kwh (e.g. BG '<1GWh')"
+        },
+        {
+          "name": "eoc_mode",
+          "label": "Eoc mode",
+          "type": "SELECT",
+          "description": "How the end of curve is worked out",
+          "options": [
+            {
+              "name": "fixed_date",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "months_from_today",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "months_from_month_start",
+              "type": "option",
+              "order": 2
+            },
+            {
+              "name": "none",
+              "type": "option",
+              "order": 3
+            }
+          ]
+        },
+        {
+          "name": "eoc_date",
+          "label": "Eoc date",
+          "type": "DATE",
+          "description": "End of curve when eoc_mode = fixed_date"
+        },
+        {
+          "name": "eoc_months",
+          "label": "Eoc months",
+          "type": "NUMBER",
+          "description": "Months added when eoc_mode is months_from_today or months_from_month_start"
+        },
+        {
+          "name": "latest_start_mode",
+          "label": "Latest start mode",
+          "type": "SELECT",
+          "description": "How the latest contract start date is worked out",
+          "options": [
+            {
+              "name": "fixed_date",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "months_from_today",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "months_from_month_start",
+              "type": "option",
+              "order": 2
+            },
+            {
+              "name": "months_before_eoc",
+              "type": "option",
+              "order": 3
+            },
+            {
+              "name": "none",
+              "type": "option",
+              "order": 4
+            }
+          ]
+        },
+        {
+          "name": "latest_start_date",
+          "label": "Latest start date",
+          "type": "DATE",
+          "description": "Latest start when latest_start_mode = fixed_date"
+        },
+        {
+          "name": "latest_start_months",
+          "label": "Latest start months",
+          "type": "NUMBER",
+          "description": "Months for the latest start rule (new business)"
+        },
+        {
+          "name": "latest_start_months_renewal",
+          "label": "Latest start months renewal",
+          "type": "NUMBER",
+          "description": "Months for the latest start rule on renewals; blank = same as new business"
+        },
+        {
+          "name": "latest_start_note",
+          "label": "Latest start note",
+          "type": "TEXT",
+          "description": "Shown after the 'start date must be on or before' message"
+        },
+        {
+          "name": "max_term_months",
+          "label": "Max term months",
+          "type": "NUMBER",
+          "description": "Hard cap on contract length; blank = curve end only"
+        },
+        {
+          "name": "min_term_months",
+          "label": "Min term months",
+          "type": "NUMBER",
+          "description": "Minimum contract length; blank = 1"
+        },
+        {
+          "name": "active",
+          "label": "Active",
+          "type": "BOOLEAN",
+          "description": "False hides the product from the calculator"
+        },
+        {
+          "name": "sort_order",
+          "label": "Sort order",
+          "type": "NUMBER",
+          "description": "Display order for ties and lists"
+        },
+        {
+          "name": "stip_month",
+          "label": "Stip month",
+          "type": "DATE",
+          "description": "Month of the stipulation sheet these values come from"
+        },
+        {
+          "name": "credit_notes",
+          "label": "Credit notes",
+          "type": "TEXT",
+          "description": "Credit restrictions, as on the sheet"
+        },
+        {
+          "name": "other_notes",
+          "label": "Other notes",
+          "type": "TEXT",
+          "description": "Other stipulations, as on the sheet"
+        },
+        {
+          "name": "changes_vs_previous",
+          "label": "Changes vs previous",
+          "type": "TEXT",
+          "description": "Changes versus the last communicated stipulations"
+        },
+        {
+          "name": "open_question",
+          "label": "Open question",
+          "type": "TEXT",
+          "description": "Anything not settled by the sheet that needs confirming"
+        }
+      ]
+    },
+    {
+      "name": "stip_comms_bands",
+      "label": "Stipulations: max commission bands",
+      "description": "Max commission p/kWh. For a deal, rows matching applies_to and fuel are tested in priority order (lowest first); the first row whose conditions all match gives the rate.",
+      "useForPages": false,
+      "allowPublicApiAccess": false,
+      "columns": [
+        {
+          "name": "band_key",
+          "label": "Band key",
+          "type": "TEXT",
+          "description": "Unique key"
+        },
+        {
+          "name": "applies_to",
+          "label": "Applies to",
+          "type": "TEXT",
+          "description": "Product family key (e.g. bg_matrix) or supplier group key (e.g. npower) this row applies to"
+        },
+        {
+          "name": "fuel",
+          "label": "Fuel",
+          "type": "SELECT",
+          "description": "Fuel the band applies to",
+          "options": [
+            {
+              "name": "any",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "E",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "G",
+              "type": "option",
+              "order": 2
+            }
+          ]
+        },
+        {
+          "name": "priority",
+          "label": "Priority",
+          "type": "NUMBER",
+          "description": "Lower is tested first"
+        },
+        {
+          "name": "aq_min_kwh",
+          "label": "Aq min kwh",
+          "type": "NUMBER",
+          "description": "AQ at or above; blank = no lower limit"
+        },
+        {
+          "name": "aq_max_kwh",
+          "label": "Aq max kwh",
+          "type": "NUMBER",
+          "description": "AQ at or below; blank = no upper limit"
+        },
+        {
+          "name": "sectors",
+          "label": "Sectors",
+          "type": "TEXT",
+          "description": "Comma-separated sector keys the band is limited to; blank = any sector"
+        },
+        {
+          "name": "start_on_or_before",
+          "label": "Start on or before",
+          "type": "DATE",
+          "description": "Contract start on or before this date; blank = any"
+        },
+        {
+          "name": "start_after",
+          "label": "Start after",
+          "type": "DATE",
+          "description": "Contract start after this date; blank = any"
+        },
+        {
+          "name": "months_to_start_gt",
+          "label": "Months to start gt",
+          "type": "NUMBER",
+          "description": "Months between quote date and start date greater than this; blank = any"
+        },
+        {
+          "name": "role",
+          "label": "Role",
+          "type": "SELECT",
+          "description": "Sales role the band applies to",
+          "options": [
+            {
+              "name": "any",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "se",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "tm",
+              "type": "option",
+              "order": 2
+            }
+          ]
+        },
+        {
+          "name": "bg_trial",
+          "label": "Bg trial",
+          "type": "SELECT",
+          "description": "British Gas 3p trial running",
+          "options": [
+            {
+              "name": "any",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "on",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "off",
+              "type": "option",
+              "order": 2
+            }
+          ]
+        },
+        {
+          "name": "comms_p_per_kwh",
+          "label": "Comms p per kwh",
+          "type": "NUMBER",
+          "description": "Max commission in pence per kWh"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "TEXT",
+          "description": "Where the rate comes from"
+        }
+      ]
+    },
+    {
+      "name": "stip_rules",
+      "label": "Stipulations: eligibility rules",
+      "description": "Checks that rule a product out (fail), flag it (warn) or cap its term (term_cap). A row fires when condition 1 and, if filled, condition 2 both match.",
+      "useForPages": false,
+      "allowPublicApiAccess": false,
+      "columns": [
+        {
+          "name": "rule_key",
+          "label": "Rule key",
+          "type": "TEXT",
+          "description": "Unique key"
+        },
+        {
+          "name": "applies_to",
+          "label": "Applies to",
+          "type": "TEXT",
+          "description": "Product family key (e.g. bg_matrix) or supplier group key (e.g. npower) this row applies to"
+        },
+        {
+          "name": "fuel",
+          "label": "Fuel",
+          "type": "SELECT",
+          "description": "Fuel the rule applies to",
+          "options": [
+            {
+              "name": "any",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "E",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "G",
+              "type": "option",
+              "order": 2
+            }
+          ]
+        },
+        {
+          "name": "field1",
+          "label": "Field1",
+          "type": "TEXT",
+          "description": "Deal input: always, sector, structure, trading_years, dd, smart, hh, micro, indep, renewal, aq_kwh, start_date, bg_trial, role"
+        },
+        {
+          "name": "op1",
+          "label": "Op1",
+          "type": "SELECT",
+          "description": "Comparison for condition 1",
+          "options": [
+            {
+              "name": "always",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "eq",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "neq",
+              "type": "option",
+              "order": 2
+            },
+            {
+              "name": "in",
+              "type": "option",
+              "order": 3
+            },
+            {
+              "name": "lt",
+              "type": "option",
+              "order": 4
+            },
+            {
+              "name": "lte",
+              "type": "option",
+              "order": 5
+            },
+            {
+              "name": "gt",
+              "type": "option",
+              "order": 6
+            },
+            {
+              "name": "gte",
+              "type": "option",
+              "order": 7
+            },
+            {
+              "name": "is_true",
+              "type": "option",
+              "order": 8
+            },
+            {
+              "name": "is_false",
+              "type": "option",
+              "order": 9
+            }
+          ]
+        },
+        {
+          "name": "value1",
+          "label": "Value1",
+          "type": "TEXT",
+          "description": "Value for condition 1 (comma list for 'in'; YYYY-MM-DD for start_date)"
+        },
+        {
+          "name": "field2",
+          "label": "Field2",
+          "type": "TEXT",
+          "description": "Optional second deal input"
+        },
+        {
+          "name": "op2",
+          "label": "Op2",
+          "type": "SELECT",
+          "description": "Comparison for condition 2",
+          "options": [
+            {
+              "name": "eq",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "neq",
+              "type": "option",
+              "order": 2
+            },
+            {
+              "name": "in",
+              "type": "option",
+              "order": 3
+            },
+            {
+              "name": "lt",
+              "type": "option",
+              "order": 4
+            },
+            {
+              "name": "lte",
+              "type": "option",
+              "order": 5
+            },
+            {
+              "name": "gt",
+              "type": "option",
+              "order": 6
+            },
+            {
+              "name": "gte",
+              "type": "option",
+              "order": 7
+            },
+            {
+              "name": "is_true",
+              "type": "option",
+              "order": 8
+            },
+            {
+              "name": "is_false",
+              "type": "option",
+              "order": 9
+            }
+          ]
+        },
+        {
+          "name": "value2",
+          "label": "Value2",
+          "type": "TEXT",
+          "description": "Value for condition 2"
+        },
+        {
+          "name": "outcome",
+          "label": "Outcome",
+          "type": "SELECT",
+          "description": "What happens when the rule fires",
+          "options": [
+            {
+              "name": "fail",
+              "type": "option",
+              "order": 0
+            },
+            {
+              "name": "warn",
+              "type": "option",
+              "order": 1
+            },
+            {
+              "name": "term_cap",
+              "type": "option",
+              "order": 2
+            }
+          ]
+        },
+        {
+          "name": "cap_months",
+          "label": "Cap months",
+          "type": "NUMBER",
+          "description": "Term cap in months when outcome = term_cap"
+        },
+        {
+          "name": "message",
+          "label": "Message",
+          "type": "TEXT",
+          "description": "Text shown to the salesperson"
+        },
+        {
+          "name": "sort_order",
+          "label": "Sort order",
+          "type": "NUMBER",
+          "description": "Display order within a product"
+        }
+      ]
+    }
+  ]
+}

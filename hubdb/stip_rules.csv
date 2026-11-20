@@ -1,0 +1,70 @@
+rule_key,applies_to,fuel,field1,op1,value1,field2,op2,value2,outcome,cap_months,message,sort_order
+bg_matrix_01,bg_matrix,G,indep,is_true,,,,,fail,,IGT meters are declined,1
+bg_matrix_02,bg_matrix,any,structure,eq,ltd,trading_years,lt,1,warn,,Newly incorporated business: proof of address needed,2
+bg_matrix_03,bg_matrix,any,dd,eq,no,renewal,is_false,,warn,,BACS payment only accepted on renewals,3
+bg_matrix_04,bg_matrix,any,bg_trial,eq,on,,,,warn,,3p applies during the trial; 2.5p elec / 1.5p gas outside it,4
+bg_bespoke_01,bg_bespoke,any,micro,is_true,,,,,fail,,Bespoke is for non-micro customers only,1
+bg_bespoke_02,bg_bespoke,any,always,always,,,,,warn,,Credit established before quoting; deal value over £100k = T3,2
+bg_bespoke_03,bg_bespoke,any,always,always,,,,,warn,,Max 100 sites per fuel without commercial agreement,3
+bg_bespoke_04,bg_bespoke,E,aq_kwh,gt,1000000,,,,warn,,Flex advantage above 1 GWh on HH,4
+bg_bespoke_05,bg_bespoke,any,bg_trial,eq,on,,,,warn,,3p applies during the trial; 2.5p elec / 1.5p gas outside it,5
+bg_lite_01,bg_lite,any,always,always,,,,,warn,,"Experian credit: contract, LOA and Experian must match or it will be rejected",1
+bg_lite_02,bg_lite,any,always,always,,,,,warn,,Correct bank address details needed for lock-in,2
+bg_lite_03,bg_lite,any,renewal,is_true,,,,,warn,,Renewal AQ must match the portal exactly,3
+corona_01,corona,any,sector,eq,domestic,,,,fail,,Domestic supplies are declined,1
+corona_02,corona,any,sector,eq,pub,,,,fail,,"No bars (pubs, bars and clubs)",2
+corona_03,corona,any,structure,eq,sole,,,,term_cap,36,Sole traders capped at 36 months (carried from August),3
+corona_04,corona,E,indep,is_true,,,,,warn,,IDNO meters are case by case,4
+corona_05,corona,G,indep,is_true,,,,,warn,,IGT meters are case by case,5
+crown_e_01,crown_e,any,sector,in,"pub,restaurant",,,,warn,,"Bars, restaurants and pubs need a good credit score",1
+crown_e_02,crown_e,any,always,always,,,,,warn,,Refer to the Crown tier sheet,2
+crown_g_01,crown_g,any,always,always,,,,,warn,,In-house credit team reviews everything; refer to the Crown tier sheet,1
+edf_matrix_01,edf_matrix,any,dd,eq,no,,,,fail,,Direct Debit only,1
+edf_matrix_02,edf_matrix,any,dd,eq,unsure,,,,warn,,Direct Debit only,2
+edf_matrix_03,edf_matrix,any,smart,eq,no,,,,fail,,Smart meter required,3
+edf_matrix_04,edf_matrix,any,smart,eq,unsure,,,,warn,,Smart meter required,4
+edf_matrix_05,edf_matrix,G,indep,is_true,,,,,fail,,IGT meters are declined,5
+edf_matrix_06,edf_matrix,any,always,always,,,,,warn,,Delphi score of 25 accepted (carried from August),6
+drax_01,drax,any,sector,eq,domestic,,,,fail,,Domestic supplies are restricted,1
+drax_02,drax,any,sector,eq,housing,,,,warn,,Housing associations and student accommodation are restricted; site lists with commercial buildings reviewed case by case,2
+drax_03,drax,any,aq_kwh,gt,5000000,,,,warn,,Volume over 5 GWh is case by case,3
+drax_04,drax,any,always,always,,,,,warn,,"Group entities are considered for the 30,000 kWh minimum; failed credit can be offered a deposit or guarantor",4
+drax_05,drax,any,always,always,,,,,warn,,2p can be split between unit rate and standing charge; above 2p is case by case,5
+engie_01,engie,any,sector,in,"carehome,pub,takeaway,domestic,hospital",,,,fail,,"Won't quote care homes, pubs, takeaways, hospitals or domestic supplies",1
+engie_02,engie,any,always,always,,,,,warn,,Needs a sufficient Experian report or Atradius approval,2
+engie_03,engie,any,sector,eq,charity,,,,warn,,Charity rate of 0.5p applied,3
+npower_01,npower,any,micro,is_true,,,,,fail,,Non-micro customers only,1
+npower_02,npower,any,start_date,lte,2028-12-31,,,,warn,,Start is within the MTP (on or before 31/12/2028),2
+npower_03,npower,any,start_date,gt,2028-12-31,role,eq,se,warn,,"Start is after the MTP, so the Sales Exec rate applies",3
+npower_04,npower,any,start_date,gt,2028-12-31,role,eq,tm,warn,,"Start is after the MTP, so the TM/BDM rate applies",4
+npower_05,npower,any,always,always,,,,,warn,,AQ nominations need an EAC form; extra comms outside MTP must be approved,5
+npower_pt_01,npower_pt,any,always,always,,,,,warn,,Pass-through product: confirm the customer is suited to non-fixed costs,1
+npower_mp_fixed_01,npower_mp_fixed,any,always,always,,,,,warn,,Multi-purchase product: confirm the customer is suited to flexible buying,1
+npower_mp_full_pt_01,npower_mp_full_pt,any,always,always,,,,,warn,,Multi-purchase full pass-through: confirm the customer is suited to flexible buying and non-fixed costs,1
+shell_01,shell,any,always,always,,,,,warn,,Minimum credit threshold of 50; below 50 is reviewed by Shell before a no-bid,1
+shell_02,shell,any,always,always,,,,,warn,,Higher comms available on request (Arjun or Nathan),2
+shell_pt_01,shell_pt,any,always,always,,,,,warn,,Pass-through product: confirm the customer is suited to non-fixed costs,1
+smartest_mm_01,smartest_mm,any,trading_years,lt,1,,,,fail,,Must have been trading for at least 12 months,1
+smartest_mm_02,smartest_mm,any,always,always,,,,,warn,,Creditsafe score above 21 and no active CCJs,2
+smartest_mm_03,smartest_mm,any,aq_kwh,gte,850000,,,,warn,,850k kWh and above goes to a credit analyst (carried from August),3
+smartest_sme_01,smartest_sme,any,trading_years,lt,1,,,,fail,,Must be incorporated for over 1 year,1
+smartest_sme_02,smartest_sme,E,indep,is_true,,,,,fail,,IDNO meters are declined,2
+smartest_sme_03,smartest_sme,G,indep,is_true,,,,,fail,,IGT meters are declined,3
+smartest_sme_04,smartest_sme,E,aq_kwh,lt,1500,,,,warn,,"Below 1,500 kWh only the SC product is available",4
+smartest_sme_05,smartest_sme,any,always,always,,,,,warn,,Minimum credit score 21 and no active CCJs; no credit file needs pre-approval before sale,5
+smartest_sme_06,smartest_sme,any,sector,eq,agriculture,,,,warn,,Agriculture: credit pass (carried from August),6
+total_matrix_01,total_matrix,any,sector,eq,pub,,,,fail,,No pubs or clubs,1
+total_matrix_02,total_matrix,any,structure,eq,ltd,trading_years,lt,2,fail,,Limited companies must be established 2 years or more,2
+total_matrix_03,total_matrix,any,structure,eq,sole,,,,warn,,Sole traders must be on the voters' roll,3
+total_matrix_04,total_matrix,any,sector,in,"charity,schoolnhs,hospital",,,,warn,,"School, NHS or charity rate applied",4
+total_bespoke_01,total_bespoke,any,sector,eq,pub,,,,fail,,No pubs or clubs,1
+total_bespoke_02,total_bespoke,any,structure,eq,ltd,trading_years,lt,2,fail,,Limited companies must be established 2 years or more,2
+total_bespoke_03,total_bespoke,any,structure,eq,sole,,,,warn,,Sole traders must be on the voters' roll,3
+total_bespoke_04,total_bespoke,any,sector,in,"charity,schoolnhs,hospital",,,,warn,,"School, NHS or charity rate applied",4
+total_matrix_05,total_matrix,any,sector,eq,domestic,,,,fail,,Domestic supplies are declined,5
+total_matrix_06,total_matrix,E,indep,is_true,,,,,fail,,IDNO meters are declined (carried from August),6
+total_matrix_07,total_matrix,G,indep,is_true,,,,,fail,,IGT meters are declined (carried from August),7
+total_matrix_08,total_matrix,any,always,always,,,,,warn,,Nominations not accepted; HH acceptances must name the MOP,8
+total_bespoke_05,total_bespoke,E,aq_kwh,gt,5000000,,,,warn,,Over 5 GWh needs the NCAR product (Fixed Power caps at 5 GWh),5
+total_bespoke_06,total_bespoke,any,always,always,,,,,warn,,Subject to valid credit acceptance; HH customers need a valid MOP contract,6
+total_bespoke_07,total_bespoke,G,always,always,,,,,warn,,Large gas contracts need emergency contact details on acceptance paperwork,7

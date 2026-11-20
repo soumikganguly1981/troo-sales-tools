@@ -1,0 +1,10 @@
+{
+  "name": "troo-sales-tools",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "sync": "node scripts/sync-shared.mjs",
+    "test": "node --test test/*.test.js",
+    "check": "node scripts/sync-shared.mjs --check && node --test test/*.test.js"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "uid": "revenue_calculator_card",
+  "type": "card",
+  "config": {
+    "name": "Supplier revenue calculator",
+    "location": "crm.record.tab",
+    "entrypoint": "/app/cards/RevenueCard.tsx",
+    "objectTypes": [
+      "deals"
+    ]
+  }
+}

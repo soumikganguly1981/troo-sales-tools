@@ -1,0 +1,32 @@
+{
+  "uid": "troo_sales_tools",
+  "type": "app",
+  "config": {
+    "description": "Troo sales tools: supplier revenue calculator (and, next, the fixed price comparison). Reads the supplier stipulations from HubDB.",
+    "name": "Troo Sales Tools",
+    "distribution": "private",
+    "auth": {
+      "type": "static",
+      "requiredScopes": [
+        "oauth",
+        "crm.objects.deals.read",
+        "crm.objects.deals.write",
+        "crm.objects.custom.read",
+        "hubdb"
+      ],
+      "optionalScopes": [],
+      "conditionallyRequiredScopes": []
+    },
+    "permittedUrls": {
+      "fetch": [],
+      "iframe": [],
+      "img": []
+    },
+    "support": {
+      "supportEmail": "soumik.ganguly@troocost.com",
+      "documentationUrl": "https://github.com/soumikganguly1981/troo-sales-tools",
+      "supportUrl": "https://github.com/soumikganguly1981/troo-sales-tools",
+      "supportPhone": "+440000000000"
+    }
+  }
+}

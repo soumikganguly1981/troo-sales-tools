@@ -1,0 +1,8 @@
+{
+  "uid": "stip_save_estimate",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/stipSaveEstimate.js",
+    "secretKeys": []
+  }
+}

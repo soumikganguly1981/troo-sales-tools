@@ -1,0 +1,8 @@
+{
+  "uid": "stip_deal_context",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/stipDealContext.js",
+    "secretKeys": []
+  }
+}
