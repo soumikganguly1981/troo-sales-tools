@@ -10,7 +10,7 @@ Private HubSpot app for Troo's sales teams.
 | Part | Where |
 |---|---|
 | Supplier stipulations | HubDB tables `stip_products`, `stip_comms_bands`, `stip_rules` (portal 26661912). Source CSVs and schema in `hubdb/` |
-| Calculation | App function `stip_calculate` (`src/app/functions/lib/engine.js`), so there's one engine and commission logic stays server-side |
+| Calculation | App function `stip_calculate` (source `functions-src/lib/engine.js`), so there's one engine and commission logic stays server-side |
 | Deal prefill | App function `stip_deal_context`: AQ and utility from associated Meters, start date from `ced_group_date`, current supplier from the Meter's current contract supplier |
 | Save to deal | App function `stip_save_estimate` writes the `est_comms_*` Deal properties. Never writes `amount` |
 | UI | `shared/RevenueCalculator.tsx`, copied into the card and the page by `npm run sync` |
@@ -22,11 +22,14 @@ Private HubSpot app for Troo's sales teams.
 
 ## Developing
 
+Edit functions in `functions-src/`, never in `src/app/functions/`: HubSpot packages each function as one file, so `npm run build` bundles each one (with its `lib/` code inlined) into `src/app/functions/`. Commit the bundles.
+
 ```sh
-npm run sync     # after editing shared/RevenueCalculator.tsx
-npm test         # engine + function tests (no HubSpot needed)
+npm ci           # once
+npm run build    # after editing functions-src/ or shared/RevenueCalculator.tsx
+npm test         # engine + function tests against the bundles (no HubSpot needed)
 ```
 
-Pushing to `main` runs the tests, then validates and uploads the project to HubSpot through GitHub Actions. It needs, in the `hubspot-production` environment: secret `HUBSPOT_PERSONAL_ACCESS_KEY` and variable `HUBSPOT_ACCOUNT_ID` (26661912).
+Pushing to `main` runs the tests, then validates and uploads the project to HubSpot through GitHub Actions. It needs, in the `hubspot-production` environment: secret `HUBSPOT_PERSONAL_ACCESS_KEY` and variable `HUBSPOT_ACCOUNT_ID` (26661912). The environment is named `HUBSPOT_PERSONAL_ACCESS_KEY`.
 
 Never commit `hubspot.config.yml`: it holds a personal access key.

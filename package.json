@@ -4,7 +4,11 @@
   "version": "0.1.0",
   "scripts": {
     "sync": "node scripts/sync-shared.mjs",
+    "build": "node scripts/build-functions.mjs && node scripts/sync-shared.mjs",
     "test": "node --test test/*.test.js",
-    "check": "node scripts/sync-shared.mjs --check && node --test test/*.test.js"
+    "check": "node scripts/sync-shared.mjs --check && node scripts/build-functions.mjs --check && node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
   }
 }
