@@ -1,0 +1,48 @@
+name: CI and deploy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Engine and function tests, shared UI in sync
+        run: npm run check
+      - name: Type-check the card and the page
+        run: |
+          for d in src/app/cards src/app/pages; do
+            (cd "$d" && npm install --no-audit --no-fund && npx tsc --noEmit -p .)
+          done
+
+  deploy:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: hubspot-production
+    env:
+      HUBSPOT_ACCOUNT_ID: ${{ vars.HUBSPOT_ACCOUNT_ID }}
+      HUBSPOT_PERSONAL_ACCESS_KEY: ${{ secrets.HUBSPOT_PERSONAL_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the HubSpot key is set
+        run: |
+          if [ -z "$HUBSPOT_PERSONAL_ACCESS_KEY" ] || [ -z "$HUBSPOT_ACCOUNT_ID" ]; then
+            echo "::error::Add the HUBSPOT_PERSONAL_ACCESS_KEY secret and HUBSPOT_ACCOUNT_ID variable to the hubspot-production environment"
+            exit 1
+          fi
+      - run: npm install -g @hubspot/cli@latest
+      - name: Validate
+        run: hs project validate --use-env
+      - name: Upload and deploy
+        run: hs project upload --use-env --json
