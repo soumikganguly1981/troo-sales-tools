@@ -12,7 +12,7 @@
         "crm.objects.deals.read",
         "crm.objects.deals.write",
         "crm.objects.custom.read",
-        "hubdb"
+        "hubdb.tables.read", "hubdb.rows.read"
       ],
       "optionalScopes": [],
       "conditionallyRequiredScopes": []
