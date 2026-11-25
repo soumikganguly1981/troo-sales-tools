@@ -2,7 +2,7 @@
 // (the shortlist and the quote PDF). The two share the deal's shortlist, so ticking an option
 // on one updates the other.
 import React, { useCallback, useState } from 'react';
-import { Flex, Tab, Tabs, hubspot } from '@hubspot/ui-extensions';
+import { Button, Divider, Flex, hubspot } from '@hubspot/ui-extensions';
 import type { CrmContext, ExtensionPointApiActions } from '@hubspot/ui-extensions';
 import { MatrixPricing } from './MatrixPricing.tsx';
 import { CustomerQuote } from './CustomerQuote.tsx';
@@ -23,14 +23,15 @@ const Pricing = ({ dealId, userName }: { dealId: string; userName: string }) => 
   const fromInstant = useCallback((n: number, changed: boolean) => { setCount(n); if (changed) setQuoteVersion((v) => v + 1); }, []);
   const fromQuote = useCallback((n: number, changed: boolean) => { setCount(n); if (changed) setMatrixVersion((v) => v + 1); }, []);
 
-  // The Tabs are only the header: content placed inside a Tab didn't update on first load
-  // until a tab was clicked, so the active sub-tab is rendered below them instead.
+  // Sub-tab switch as buttons: with HubSpot's Tabs component on the card, the card stopped
+  // redrawing after its first render until a tab was clicked.
   return (
     <Flex direction="column" gap="md">
-      <Tabs variant="enclosed" defaultSelected="instant" onSelectedChange={(id: string | number) => setTab(String(id))}>
-        <Tab tabId="instant" title="Instant Quote" />
-        <Tab tabId="quote" title={count ? `Customer quote (${count})` : 'Customer quote'} />
-      </Tabs>
+      <Flex direction="row" gap="xs">
+        <Button variant={tab === 'instant' ? 'primary' : 'secondary'} onClick={() => setTab('instant')}>Instant Quote</Button>
+        <Button variant={tab === 'quote' ? 'primary' : 'secondary'} onClick={() => setTab('quote')}>{count ? `Customer quote (${count})` : 'Customer quote'}</Button>
+      </Flex>
+      <Divider />
       {tab === 'instant'
         ? <MatrixPricing dealId={dealId} userName={userName} shortlistVersion={matrixVersion} onShortlist={fromInstant} />
         : <CustomerQuote dealId={dealId} userName={userName} version={quoteVersion} onShortlist={fromQuote} />}
