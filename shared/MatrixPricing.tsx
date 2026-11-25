@@ -96,7 +96,9 @@ const WithUnit = ({ unit, children }: { unit: string; children: React.ReactNode 
   </Flex>
 );
 
-export const MatrixPricing = ({ dealId, userName }: { dealId?: string | null; userName?: string }) => {
+type Props = { dealId?: string | null; userName?: string; shortlistVersion?: number; onShortlist?: (count: number) => void };
+
+export const MatrixPricing = ({ dealId, userName, shortlistVersion = 0, onShortlist }: Props) => {
   const [ctx, setCtx] = useState<Ctx | null>(null);
   const [form, setForm] = useState<Form>(formFrom(null, ''));
   const [durations, setDurations] = useState<(number | null)[]>([12, 24, 36]);
@@ -116,11 +118,20 @@ export const MatrixPricing = ({ dealId, userName }: { dealId?: string | null; us
         if (c.error) { setErr(c.error); return; }
         setCtx(c);
         setForm(formFrom(c.meters[0] || null, companyFrom(c.dealName)));
-        const sl = unwrap<{ items?: ShortItem[] }>(await hubspot.serverless('matrix_shortlist', { parameters: { dealId, action: 'get' } }));
-        setListed(new Set((sl.items || []).map((i) => i.key)));
       } catch (e) { setErr(`Couldn't read the deal: ${(e as Error).message}`); }
     })();
   }, [dealId]);
+
+  // Which results are already shortlisted. Reloads when the Customer quote tab changes the shortlist.
+  useEffect(() => {
+    if (!dealId) return;
+    (async () => {
+      try {
+        const sl = unwrap<{ items?: ShortItem[] }>(await hubspot.serverless('matrix_shortlist', { parameters: { dealId, action: 'get' } }));
+        setListed(new Set((sl.items || []).map((i) => i.key)));
+      } catch { /* the ticks just start empty */ }
+    })();
+  }, [dealId, shortlistVersion]);
 
   const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
   const suppliers = useMemo(() => [...new Set((ctx?.books || []).filter((b) => b.fuel === form.fuel).map((b) => b.supplier))].sort(), [ctx, form.fuel]);
@@ -177,7 +188,8 @@ export const MatrixPricing = ({ dealId, userName }: { dealId?: string | null; us
       if (out.error) setSaveMsg({ ok: false, text: out.error });
       else {
         setListed(new Set((out.items || []).map((i) => i.key)));
-        setSaveMsg({ ok: true, text: `${on ? 'Added to' : 'Removed from'} the shortlist (${(out.items || []).length} option${(out.items || []).length === 1 ? '' : 's'}). Open the Customer quote tab to review and save the quote.` });
+        onShortlist?.((out.items || []).length);
+        setSaveMsg({ ok: true, text: `${on ? 'Added to' : 'Removed from'} the shortlist (${(out.items || []).length} option${(out.items || []).length === 1 ? '' : 's'}). Open the Customer quote tab above to review and save the quote.` });
       }
     } catch (e) { setSaveMsg({ ok: false, text: `Couldn't update the shortlist: ${(e as Error).message}` }); }
     setPending(null);
@@ -383,7 +395,7 @@ export const MatrixPricing = ({ dealId, userName }: { dealId?: string | null; us
             </Table>
           )}
           {res.truncated && <Text variant="microcopy">Showing the cheapest 150 quotes.</Text>}
-          {!!res.options.length && <Text variant="microcopy">Tick the options to offer the customer. They collect on the Customer quote tab, where you save the quote to the deal.</Text>}
+          {!!res.options.length && <Text variant="microcopy">Tick the options to offer the customer. They collect on the Customer quote tab above, where you save the quote to the deal.</Text>}
           {!!res.missing.length && (
             <>
               <Text format={{ fontWeight: 'demibold' }}>Not quoting</Text>
