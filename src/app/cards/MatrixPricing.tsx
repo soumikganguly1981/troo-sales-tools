@@ -25,6 +25,7 @@ type Option = {
 };
 type MeterResult = { meterId: string; errors: string[]; options: Option[]; truncated?: boolean; missing: { supplier: string; reason: string }[] };
 type PriceResponse = { today: string; results: MeterResult[]; error?: string };
+type ShortItem = { key: string };
 type DateVal = { year: number; month: number; date: number };
 type Form = {
   meterId: string; site: string; meterNumber: string; fuel: Fuel; region: string; aq: number | null; company: string;
@@ -60,6 +61,8 @@ const toDate = (iso: string | null): DateVal | undefined => { if (!iso) return u
 const fromDate = (v: DateVal | null) => (v ? `${v.year}-${String(v.month + 1).padStart(2, '0')}-${String(v.date).padStart(2, '0')}` : null);
 const yn = (v: string) => (v === 'yes' ? true : v === 'no' ? false : null);
 const unwrap = <T,>(r: unknown): T => ((r as { body?: T })?.body ?? r) as T;
+// Same key as functions-src/lib/quote.js itemKey, so ticked results stay ticked.
+const itemKey = (meterId: string, o: Option) => [meterId, o.supplier, o.products.join('/'), o.term, o.endDate || '', o.commission, o.annual].join('|');
 // "BLACK ORANGE INV LTD - RENEWALS" -> "BLACK ORANGE INV LTD"
 const companyFrom = (dealName: string) => dealName.split(' - ')[0].trim();
 
@@ -94,7 +97,7 @@ const WithUnit = ({ unit, children }: { unit: string; children: React.ReactNode 
   </Flex>
 );
 
-export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
+export const MatrixPricing = ({ dealId, userName }: { dealId?: string | null; userName?: string }) => {
   const [ctx, setCtx] = useState<Ctx | null>(null);
   const [form, setForm] = useState<Form>(formFrom(null, ''));
   const [durations, setDurations] = useState<(number | null)[]>([12, 24, 36]);
@@ -103,6 +106,8 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
   const [res, setRes] = useState<MeterResult | null>(null);
   const [view, setView] = useState('all');
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [listed, setListed] = useState<Set<string>>(new Set());
+  const [pending, setPending] = useState<string | null>(null);
 
   useEffect(() => {
     if (!dealId) return;
@@ -112,6 +117,8 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
         if (c.error) { setErr(c.error); return; }
         setCtx(c);
         setForm(formFrom(c.meters[0] || null, companyFrom(c.dealName)));
+        const sl = unwrap<{ items?: ShortItem[] }>(await hubspot.serverless('matrix_shortlist', { parameters: { dealId, action: 'get' } }));
+        setListed(new Set((sl.items || []).map((i) => i.key)));
       } catch (e) { setErr(`Couldn't read the deal: ${(e as Error).message}`); }
     })();
   }, [dealId]);
@@ -159,14 +166,22 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
     setBusy(false);
   };
 
-  const save = async (o: Option) => {
-    setSaveMsg(null);
+  // Shortlist ticks: each option is added to (or removed from) the Customer quote tab on the deal.
+  const toggle = async (o: Option, on: boolean) => {
+    const key = itemKey(form.meterId, o);
+    setSaveMsg(null); setPending(key);
     try {
-      const out = unwrap<{ saved?: boolean; error?: string }>(await hubspot.serverless('stip_save_estimate', {
-        parameters: { dealId, supplier: o.supplier, product: o.products.join(' / '), comms: o.commission, term: o.term, annual: ((form.aq || 0) * o.commission) / 100, total: o.totalComms },
+      const meter = { id: form.meterId, meterNumber: form.meterNumber, fuel: form.fuel, region: form.region, aq: form.aq, start: form.start, site: form.site, company: form.company };
+      const out = unwrap<{ items?: ShortItem[]; error?: string }>(await hubspot.serverless('matrix_shortlist', {
+        parameters: on ? { dealId, action: 'add', meter, option: o, by: userName } : { dealId, action: 'remove', key },
       }));
-      setSaveMsg(out.saved ? { ok: true, text: `Saved ${o.supplier} ${o.products[0]}, ${o.term} months, ${gbp(o.totalComms)} commission, to this deal.` } : { ok: false, text: out.error || "Couldn't save to the deal." });
-    } catch (e) { setSaveMsg({ ok: false, text: `Couldn't save to the deal: ${(e as Error).message}` }); }
+      if (out.error) setSaveMsg({ ok: false, text: out.error });
+      else {
+        setListed(new Set((out.items || []).map((i) => i.key)));
+        setSaveMsg({ ok: true, text: `${on ? 'Added to' : 'Removed from'} the shortlist (${(out.items || []).length} option${(out.items || []).length === 1 ? '' : 's'}). Open the Customer quote tab to review and save the quote.` });
+      }
+    } catch (e) { setSaveMsg({ ok: false, text: `Couldn't update the shortlist: ${(e as Error).message}` }); }
+    setPending(null);
   };
 
   if (!ctx && !err) return <LoadingSpinner label="Reading the deal's meters" />;
@@ -324,11 +339,12 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
                 value={view} onChange={(v) => setView(String(v))} />
             </Flex>
           )}
-          {saveMsg && <Alert title={saveMsg.ok ? 'Saved' : "Couldn't save"} variant={saveMsg.ok ? 'success' : 'error'}>{saveMsg.text}</Alert>}
+          {saveMsg && <Alert title={saveMsg.ok ? 'Shortlist updated' : "Couldn't update the shortlist"} variant={saveMsg.ok ? 'success' : 'error'}>{saveMsg.text}</Alert>}
           {!!opts.length && (
             <Table bordered>
               <TableHead>
                 <TableRow>
+                  <TableHeader>Shortlist</TableHeader>
                   <TableHeader>Supplier</TableHeader>
                   <TableHeader>Annual Cost</TableHeader>
                   <TableHeader>Commission</TableHeader>
@@ -338,12 +354,15 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
                   {showRates.night && <TableHeader>Night</TableHeader>}
                   {showRates.ew && <TableHeader>Eve/Wkend</TableHeader>}
                   <TableHeader>Standing Charge</TableHeader>
-                  <TableHeader>Save</TableHeader>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {opts.map((o, i) => (
                   <TableRow key={`${o.supplier}-${i}`}>
+                    <TableCell>
+                      <Checkbox name={`sl-${i}`} checked={listed.has(itemKey(form.meterId, o))} readOnly={pending === itemKey(form.meterId, o) || !dealId}
+                        onChange={(v: boolean) => toggle(o, v)} />
+                    </TableCell>
                     <TableCell>
                       <Text format={{ fontWeight: 'demibold' }}>{o.supplier}</Text>
                       <Text variant="microcopy">{o.products.join(' / ')}</Text>
@@ -359,13 +378,13 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
                     {showRates.night && <TableCell>{p(o.rates.night)}</TableCell>}
                     {showRates.ew && <TableCell>{p(o.rates.ew)}</TableCell>}
                     <TableCell>{o.sc ? `${o.sc.toFixed(2)}p/day` : 'None'}{o.kvaCharge ? ` + ${o.kvaCharge}p/kVA/m` : ''}</TableCell>
-                    <TableCell><Button size="xs" onClick={() => save(o)} disabled={!dealId}>Save to deal</Button></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
           {res.truncated && <Text variant="microcopy">Showing the cheapest 150 quotes.</Text>}
+          {!!res.options.length && <Text variant="microcopy">Tick the options to offer the customer. They collect on the Customer quote tab, where you save the quote to the deal.</Text>}
           {!!res.missing.length && (
             <>
               <Text format={{ fontWeight: 'demibold' }}>Not quoting</Text>

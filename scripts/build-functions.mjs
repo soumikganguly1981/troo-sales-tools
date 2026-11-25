@@ -4,7 +4,7 @@
 import { build } from 'esbuild';
 import { readFileSync, existsSync } from 'node:fs';
 const check = process.argv.includes('--check');
-const entries = ['stipCalculate', 'stipDealContext', 'stipSaveEstimate', 'matrixDealContext', 'matrixPrice'];
+const entries = ['stipCalculate', 'stipDealContext', 'stipSaveEstimate', 'matrixDealContext', 'matrixPrice', 'matrixShortlist', 'matrixQuote'];
 const stale = [];
 for (const name of entries) {
   const outfile = `src/app/functions/${name}.js`;

@@ -1,0 +1,8 @@
+{
+  "uid": "matrix_quote",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/matrixQuote.js",
+    "secretKeys": []
+  }
+}
