@@ -22057,6 +22057,8 @@ var require_quote = __commonJS({
         return [];
       }
     }
+    var INVISIBLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u00AD\u200B-\u200F\u2028-\u202E\u2060-\u206F\uFEFF]/g;
+    var tidy = (v) => String(v == null ? "" : v).replace(INVISIBLE, "").replace(/\s+/g, " ").trim();
     function cleanItem(meter, option, by) {
       const m = meter || {};
       const o = option || {};
@@ -22064,17 +22066,17 @@ var require_quote = __commonJS({
       const n = (v) => v == null || v === "" || Number.isNaN(Number(v)) ? null : Number(v);
       const meterOut = {
         id: String(m.id || "manual"),
-        meterNumber: String(m.meterNumber || "").slice(0, 40),
+        meterNumber: tidy(m.meterNumber).slice(0, 40),
         fuel: ["E", "G", "HH"].includes(m.fuel) ? m.fuel : "E",
         region: m.region || null,
         aq: n(m.aq) || 0,
         start: m.start || null,
-        site: String(m.site || "").slice(0, 200),
-        company: String(m.company || "").slice(0, 200)
+        site: tidy(m.site).slice(0, 200),
+        company: tidy(m.company).slice(0, 200)
       };
       const optOut = {
-        supplier: String(o.supplier || "").slice(0, 100),
-        products: (o.products || []).map((x) => String(x).slice(0, 100)).slice(0, 4),
+        supplier: tidy(o.supplier).slice(0, 100),
+        products: (o.products || []).map((x) => tidy(x).slice(0, 100)).slice(0, 4),
         term: n(o.term),
         endDate: o.endDate || null,
         green: !!o.green,
@@ -22086,7 +22088,7 @@ var require_quote = __commonJS({
         totalComms: n(o.totalComms) || 0,
         quoteBy: o.quoteBy || null
       };
-      return { key: itemKey(meterOut.id, optOut), addedAt: (/* @__PURE__ */ new Date()).toISOString(), by: String(by || "").slice(0, 100), meter: meterOut, option: optOut };
+      return { key: itemKey(meterOut.id, optOut), addedAt: (/* @__PURE__ */ new Date()).toISOString(), by: tidy(by).slice(0, 100), meter: meterOut, option: optOut };
     }
     function groupByMeter2(items) {
       const map = /* @__PURE__ */ new Map();
@@ -22137,11 +22139,13 @@ var require_quote = __commonJS({
       const until = validUntil(items);
       let page;
       let y;
-      const text = (s, x, yy, size = 10, f = font, color = INK) => page.drawText(String(s), { x, y: yy, size, font: f, color });
+      const charset = new Set(font.getCharacterSet());
+      const safe = (v) => [...tidy(v).normalize("NFC")].map((ch) => charset.has(ch.codePointAt(0)) ? ch : ch.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")).filter((ch) => [...ch].every((c) => charset.has(c.codePointAt(0)))).join("");
+      const text = (s, x, yy, size = 10, f = font, color = INK) => page.drawText(safe(s), { x, y: yy, size, font: f, color });
       const fit = (s, width, size, f = font) => {
-        let t = String(s);
+        let t = safe(s);
         while (t.length > 1 && f.widthOfTextAtSize(t, size) > width) t = t.slice(0, -1);
-        return t.length < String(s).length ? `${t.slice(0, -1)}\u2026` : t;
+        return t.length < safe(s).length ? `${t.slice(0, -1)}\u2026` : t;
       };
       const header = (first) => {
         page = doc.addPage([W, H]);
