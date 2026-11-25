@@ -373,18 +373,33 @@ var require_matrix = __commonJS({
       return book._rows;
     }
     var inRange = (v, lo, hi) => (lo == null || v >= lo) && (hi == null || v <= hi);
+    function mismatches(row, m) {
+      const out = [];
+      if (row.rate_type && row.rate_type !== m.rateType) out.push("rate type");
+      if (row.profile && m.profile && String(row.profile) !== String(m.profile)) out.push("profile class");
+      if (row.band && String(row.band) !== String(m.band || "1")) out.push("band");
+      if (row.voltage && m.voltage && row.voltage !== m.voltage) out.push("voltage");
+      if (row.exit_zone && m.exitZone && row.exit_zone !== m.exitZone) out.push("exit zone");
+      if (!inRange(m.aq, row.aq_min, row.aq_max)) out.push("consumption band");
+      if (!inRange(m.start, row.start_from, row.start_to)) out.push("start date");
+      if (row.dd != null && m.dd != null && Boolean(row.dd) !== Boolean(m.dd)) out.push("payment method");
+      if (row.amr != null && m.amr != null && Boolean(row.amr) !== Boolean(m.amr)) out.push("smart meter");
+      if (m.credit != null && !inRange(m.credit, row.credit_min, row.credit_max)) out.push("credit score");
+      return out;
+    }
     function mismatch(row, m) {
-      if (row.rate_type && row.rate_type !== m.rateType) return "rate type";
-      if (row.profile && m.profile && String(row.profile) !== String(m.profile)) return "profile class";
-      if (row.band && String(row.band) !== String(m.band || "1")) return "band";
-      if (row.voltage && m.voltage && row.voltage !== m.voltage) return "voltage";
-      if (row.exit_zone && m.exitZone && row.exit_zone !== m.exitZone) return "exit zone";
-      if (!inRange(m.aq, row.aq_min, row.aq_max)) return "consumption band";
-      if (!inRange(m.start, row.start_from, row.start_to)) return "start date";
-      if (row.dd != null && m.dd != null && Boolean(row.dd) !== Boolean(m.dd)) return "payment method";
-      if (row.amr != null && m.amr != null && Boolean(row.amr) !== Boolean(m.amr)) return "smart meter";
-      if (m.credit != null && !inRange(m.credit, row.credit_min, row.credit_max)) return "credit score";
-      return null;
+      return mismatches(row, m)[0] || null;
+    }
+    var ukDate = (iso) => iso ? iso.slice(0, 10).split("-").reverse().join("/") : "";
+    function noPriceReason(near, reasons, starts, m) {
+      const pick = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0];
+      const top = pick(near) || pick(reasons);
+      if (!top) return "Price book has no rows";
+      if (top[0] === "start date" && starts.min && starts.max) {
+        if (m.start && m.start > starts.max) return `Start date ${ukDate(m.start)} is after the latest start this book quotes (${ukDate(starts.max)})`;
+        if (m.start && m.start < starts.min) return `Start date ${ukDate(m.start)} is before the earliest start this book quotes (${ukDate(starts.min)})`;
+      }
+      return `No price for this meter's ${top[0]}`;
     }
     function priceRow(row, m, comm, scComm, today) {
       const use = splitUsage(m.aq, m.rateType, m.dayShare);
@@ -444,12 +459,17 @@ var require_matrix = __commonJS({
         if (cap && cap.comms != null && comm > cap.comms) comm = cap.comms;
         const scComm = Number(opts.scCommission?.[supplier] || 0);
         const reasons = {};
+        const near = {};
+        const starts = { min: null, max: null };
         let found = 0;
         for (const b of sBooks) {
           for (const row of rowsOf(b)) {
-            const why = mismatch(row, m);
-            if (why) {
-              reasons[why] = (reasons[why] || 0) + 1;
+            if (row.start_from && (!starts.min || row.start_from < starts.min)) starts.min = row.start_from;
+            if (row.start_to && (!starts.max || row.start_to > starts.max)) starts.max = row.start_to;
+            const all = mismatches(row, m);
+            if (all.length) {
+              reasons[all[0]] = (reasons[all[0]] || 0) + 1;
+              if (all.length === 1) near[all[0]] = (near[all[0]] || 0) + 1;
               continue;
             }
             if (!row.end_date && opts.terms && opts.terms.length && !opts.terms.includes(Number(row.term))) {
@@ -464,8 +484,7 @@ var require_matrix = __commonJS({
           }
         }
         if (!found) {
-          const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
-          missing.push({ supplier, reason: top ? `No price for this meter's ${top[0]}` : "Price book has no rows" });
+          missing.push({ supplier, reason: noPriceReason(near, reasons, starts, m) });
         }
       }
       options.sort((a, b) => a.annual - b.annual || b.term - a.term);
@@ -534,28 +553,36 @@ var require_matrix = __commonJS({
   }
 });
 
+// functions-src/lib/families.js
+var require_families = __commonJS({
+  "functions-src/lib/families.js"(exports2, module2) {
+    var FAMILY2 = {
+      "British Gas": "bg_matrix",
+      "BG Lite": "bg_lite",
+      "BG Plus": "bg_matrix",
+      "Corona Energy": "corona",
+      "Crown Gas & Power": { E: "crown_e", G: "crown_g" },
+      Drax: "drax",
+      "EDF Energy": "edf_matrix",
+      Engie: "engie",
+      Npower: "npower_fixed",
+      "Shell Energy": "shell_standard",
+      "Smartest Energy Business": "smartest_sme",
+      "Smartest Energy": "smartest_sme",
+      TotalEnergies: "total_matrix"
+    };
+    var GROUP2 = { bg_matrix: "bg", bg_lite: "bg", corona: "corona", crown_e: "crown", crown_g: "crown", drax: "drax", edf_matrix: "edf", engie: "engie", npower_fixed: "npower", shell_standard: "shell", smartest_sme: "smartest", total_matrix: "total" };
+    module2.exports = { FAMILY: FAMILY2, GROUP: GROUP2 };
+  }
+});
+
 // functions-src/matrixPrice.js
 var { ok, fail } = require_http();
 var { loadStipulations } = require_hubdb();
 var { evaluate, todayInLondon } = require_engine();
 var { booksFor } = require_pricebooks();
 var { priceMeter, groupOptions } = require_matrix();
-var FAMILY = {
-  "British Gas": "bg_matrix",
-  "BG Lite": "bg_lite",
-  "BG Plus": "bg_matrix",
-  "Corona Energy": "corona",
-  "Crown Gas & Power": { E: "crown_e", G: "crown_g" },
-  Drax: "drax",
-  "EDF Energy": "edf_matrix",
-  Engie: "engie",
-  Npower: "npower_fixed",
-  "Shell Energy": "shell_standard",
-  "Smartest Energy Business": "smartest_sme",
-  "Smartest Energy": "smartest_sme",
-  TotalEnergies: "total_matrix"
-};
-var GROUP = { bg_matrix: "bg", bg_lite: "bg", corona: "corona", crown_e: "crown", crown_g: "crown", drax: "drax", edf_matrix: "edf", engie: "engie", npower_fixed: "npower", shell_standard: "shell", smartest_sme: "smartest", total_matrix: "total" };
+var { FAMILY, GROUP } = require_families();
 var MAX_OPTIONS = 150;
 function capsFor(m, suppliers, tables, opts, today) {
   const fuel = m.fuel === "G" ? "G" : "E";

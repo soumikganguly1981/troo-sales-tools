@@ -41,18 +41,38 @@ function rowsOf(book) {
 const inRange = (v, lo, hi) => (lo == null || v >= lo) && (hi == null || v <= hi);
 
 // Does this row fit the meter? Returns null if it fits, else the reason it doesn't.
+function mismatches(row, m) {
+  const out = [];
+  if (row.rate_type && row.rate_type !== m.rateType) out.push('rate type');
+  if (row.profile && m.profile && String(row.profile) !== String(m.profile)) out.push('profile class');
+  if (row.band && String(row.band) !== String(m.band || '1')) out.push('band');
+  if (row.voltage && m.voltage && row.voltage !== m.voltage) out.push('voltage');
+  if (row.exit_zone && m.exitZone && row.exit_zone !== m.exitZone) out.push('exit zone');
+  if (!inRange(m.aq, row.aq_min, row.aq_max)) out.push('consumption band');
+  if (!inRange(m.start, row.start_from, row.start_to)) out.push('start date');
+  if (row.dd != null && m.dd != null && Boolean(row.dd) !== Boolean(m.dd)) out.push('payment method');
+  if (row.amr != null && m.amr != null && Boolean(row.amr) !== Boolean(m.amr)) out.push('smart meter');
+  if (m.credit != null && !inRange(m.credit, row.credit_min, row.credit_max)) out.push('credit score');
+  return out;
+}
+
 function mismatch(row, m) {
-  if (row.rate_type && row.rate_type !== m.rateType) return 'rate type';
-  if (row.profile && m.profile && String(row.profile) !== String(m.profile)) return 'profile class';
-  if (row.band && String(row.band) !== String(m.band || '1')) return 'band';
-  if (row.voltage && m.voltage && row.voltage !== m.voltage) return 'voltage';
-  if (row.exit_zone && m.exitZone && row.exit_zone !== m.exitZone) return 'exit zone';
-  if (!inRange(m.aq, row.aq_min, row.aq_max)) return 'consumption band';
-  if (!inRange(m.start, row.start_from, row.start_to)) return 'start date';
-  if (row.dd != null && m.dd != null && Boolean(row.dd) !== Boolean(m.dd)) return 'payment method';
-  if (row.amr != null && m.amr != null && Boolean(row.amr) !== Boolean(m.amr)) return 'smart meter';
-  if (m.credit != null && !inRange(m.credit, row.credit_min, row.credit_max)) return 'credit score';
-  return null;
+  return mismatches(row, m)[0] || null;
+}
+
+const ukDate = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '');
+
+// Why a supplier has no price: the check that alone blocks the most rows (rows that pass every
+// other check), so the rep sees the real blocker, not just the most common difference.
+function noPriceReason(near, reasons, starts, m) {
+  const pick = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0];
+  const top = pick(near) || pick(reasons);
+  if (!top) return 'Price book has no rows';
+  if (top[0] === 'start date' && starts.min && starts.max) {
+    if (m.start && m.start > starts.max) return `Start date ${ukDate(m.start)} is after the latest start this book quotes (${ukDate(starts.max)})`;
+    if (m.start && m.start < starts.min) return `Start date ${ukDate(m.start)} is before the earliest start this book quotes (${ukDate(starts.min)})`;
+  }
+  return `No price for this meter's ${top[0]}`;
 }
 
 // One priced option. comm = p/kWh added to every unit rate; scComm = p/day added to the standing charge.
@@ -117,20 +137,26 @@ function priceMeter(m, books, opts = {}) {
     if (cap && cap.comms != null && comm > cap.comms) comm = cap.comms; // never above the stipulated cap
     const scComm = Number(opts.scCommission?.[supplier] || 0);
     const reasons = {};
+    const near = {};
+    const starts = { min: null, max: null };
     let found = 0;
     for (const b of sBooks) {
       for (const row of rowsOf(b)) {
-        const why = mismatch(row, m);
-        if (why) { reasons[why] = (reasons[why] || 0) + 1; continue; }
+        if (row.start_from && (!starts.min || row.start_from < starts.min)) starts.min = row.start_from;
+        if (row.start_to && (!starts.max || row.start_to > starts.max)) starts.max = row.start_to;
+        const all = mismatches(row, m);
+        if (all.length) {
+          reasons[all[0]] = (reasons[all[0]] || 0) + 1;
+          if (all.length === 1) near[all[0]] = (near[all[0]] || 0) + 1;
+          continue;
+        }
         if (!row.end_date && opts.terms && opts.terms.length && !opts.terms.includes(Number(row.term))) { reasons.term = (reasons.term || 0) + 1; continue; }
         const o = priceRow({ ...row, supplier, quote_by: row.quote_by || b.meta.quote_by }, m, comm, scComm, today);
         if (o) { found++; options.push(o); }
       }
     }
     if (!found) {
-      // the check that rules out the most rows is the most useful explanation
-      const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
-      missing.push({ supplier, reason: top ? `No price for this meter's ${top[0]}` : 'Price book has no rows' });
+      missing.push({ supplier, reason: noPriceReason(near, reasons, starts, m) });
     }
   }
   options.sort((a, b) => a.annual - b.annual || b.term - a.term);

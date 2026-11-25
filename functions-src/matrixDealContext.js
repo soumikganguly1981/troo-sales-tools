@@ -5,6 +5,7 @@
 const { api, ok, fail } = require('./lib/http');
 const { meterFromProps } = require('./lib/matrix');
 const { summary } = require('./lib/pricebooks');
+const { FAMILY } = require('./lib/families');
 
 const METER = '2-112673604';
 const PROPS = ['utility', 'meter_number', 'bottom_line_meter_number__unique_identifier_', 'top_line_meter_number', 'meter_type', 'aq',
@@ -43,7 +44,9 @@ exports.main = async (context) => {
     const notes = [];
     if (!priceable.length) notes.push('No electricity or gas meters are linked to this deal.');
     if (!books.length && !booksError) notes.push('No price books are loaded yet. The Pricing team adds them to the Price books folder.');
-    return ok({ dealName: dp.dealname || '', ced, meters: priceable, books, booksError, notes });
+    // suppliers with a stipulation get the maximum commission when the field is left blank
+    const stipulated = [...new Set(books.map((b) => b.supplier))].filter((s) => FAMILY[s]);
+    return ok({ dealName: dp.dealname || '', ced, meters: priceable, books, stipulated, booksError, notes });
   } catch (e) {
     return fail(500, `Couldn't read the deal: ${e.message}`);
   }
