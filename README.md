@@ -22,7 +22,7 @@ Private HubSpot app for Troo's sales teams.
 |---|---|
 | Price books | HubSpot file manager, `Price books/Live`: one private JSON file per supplier, fuel, contract type (ACQ/REN) and region |
 | Index of live books | HubDB table `price_books` (Matrix price books): status `live` / `superseded`, quote-by date, source file, checks |
-| Loader | GitHub Action *Load matrix price books* runs `hubdb/load_price_books.py` every 15 minutes (weekdays 06:00-20:00 UTC) and on demand. Needs repository secret `HUBSPOT_PRICEBOOK_TOKEN` (private app token, scopes `files` and `hubdb`) |
+| Loader | GitHub Action *Load matrix price books* runs `hubdb/load_price_books.py` every 15 minutes (weekdays 06:00-20:00 UTC) and on demand. Uses the deploy personal access key (`HUBSPOT_PERSONAL_ACCESS_KEY` environment), which needs the Files and HubDB scopes. A private app token in `HUBSPOT_PRICEBOOK_TOKEN` is used instead if set |
 | Engine | `functions-src/lib/matrix.js`, pure and tested against two real Utility Click quotes in `test/matrix.test.js`. Commission caps and eligibility come from the stipulation tables through `lib/engine.js` |
 | Functions | `matrix_deal_context` (the deal's meters and the live books), `matrix_price` (prices the chosen meters). Save to deal reuses `stip_save_estimate` |
 | Meter fields | `mp_band`, `mp_day_share_pct` (blank = 75), `mp_hh_voltage`, `mp_metering`, `mp_gas_ldz`, `mp_gas_exit_zone`, plus `kva`, `meter_type`, the MPAN lines and AQ |
