@@ -33,3 +33,15 @@ test('builds a PDF and a note naming the commission', async () => {
   assert.match(note, /commission 1p\/kWh/);
   assert.equal(q.quoteFileName('Acme & Co. Ltd', '2026-11-25'), 'Troo quote - Acme Co Ltd - 2026-11-25.pdf');
 });
+
+test('PDF copes with characters the font cannot draw (zero-width spaces, emoji, non-Latin text)', async () => {
+  const odd = { ...meter, company: 'Acme​ Ltd — Café ☕ 北京', site: '1​ High St﻿', meterNumber: '1012​648213139' };
+  const items = [q.cleanItem(odd, { ...opt(24, 2000), products: ['Fix​ Plan ✓'] })];
+  assert.equal(items[0].meter.company.includes('​'), false);
+  const pdf = await q.buildQuotePdf({ items, company: 'Acme​ Ltd ☕', date: '2026-11-25', logo: null });
+  assert.equal(Buffer.from(pdf.slice(0, 4)).toString(), '%PDF');
+  // Raw stored data with a zero-width space (saved before this fix) still builds
+  const raw = [{ ...items[0], meter: { ...items[0].meter, company: 'Black​ Orange' } }];
+  const pdf2 = await q.buildQuotePdf({ items: raw, company: 'Black​ Orange', date: '2026-11-25', logo: null });
+  assert.equal(Buffer.from(pdf2.slice(0, 4)).toString(), '%PDF');
+});
