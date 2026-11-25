@@ -13,7 +13,6 @@ interface Props {
 }
 
 const Pricing = ({ dealId, userName }: { dealId: string; userName: string }) => {
-  const [tab, setTab] = useState<string>('instant');
   const [count, setCount] = useState<number | null>(null);
   const [quoteVersion, setQuoteVersion] = useState(0);
   const [matrixVersion, setMatrixVersion] = useState(0);
@@ -24,7 +23,8 @@ const Pricing = ({ dealId, userName }: { dealId: string; userName: string }) => 
   const fromQuote = useCallback((n: number, changed: boolean) => { setCount(n); if (changed) setMatrixVersion((v) => v + 1); }, []);
 
   return (
-    <Tabs variant="enclosed" selected={tab} onSelectedChange={(id: string | number) => setTab(String(id))}>
+    // Uncontrolled: with a controlled `selected`, the first sub-tab didn't update until a switch.
+    <Tabs variant="enclosed" defaultSelected="instant">
       <Tab tabId="instant" title="Instant Quote">
         <MatrixPricing dealId={dealId} userName={userName} shortlistVersion={matrixVersion} onShortlist={fromInstant} />
       </Tab>
