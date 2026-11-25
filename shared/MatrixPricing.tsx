@@ -96,22 +96,30 @@ const WithUnit = ({ unit, children }: { unit: string; children: React.ReactNode 
   </Flex>
 );
 
+// Keeps the form and results while the rep is on the Customer quote sub-tab (the component
+// unmounts when the sub-tab changes), so switching back shows the same quote.
+type Saved = { ctx: Ctx | null; form: Form; durations: (number | null)[]; res: MeterResult | null; view: string };
+const memory = new Map<string, Saved>();
+
 type Props = { dealId?: string | null; userName?: string; shortlistVersion?: number; onShortlist?: (count: number, changed: boolean) => void };
 
 export const MatrixPricing = ({ dealId, userName, shortlistVersion = 0, onShortlist }: Props) => {
-  const [ctx, setCtx] = useState<Ctx | null>(null);
-  const [form, setForm] = useState<Form>(formFrom(null, ''));
-  const [durations, setDurations] = useState<(number | null)[]>([12, 24, 36]);
+  const saved = dealId ? memory.get(dealId) : undefined;
+  const [ctx, setCtx] = useState<Ctx | null>(saved?.ctx ?? null);
+  const [form, setForm] = useState<Form>(saved?.form ?? formFrom(null, ''));
+  const [durations, setDurations] = useState<(number | null)[]>(saved?.durations ?? [12, 24, 36]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [res, setRes] = useState<MeterResult | null>(null);
-  const [view, setView] = useState('all');
+  const [res, setRes] = useState<MeterResult | null>(saved?.res ?? null);
+  const [view, setView] = useState(saved?.view ?? 'all');
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [listed, setListed] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<string | null>(null);
 
+  useEffect(() => { if (dealId) memory.set(dealId, { ctx, form, durations, res, view }); }, [dealId, ctx, form, durations, res, view]);
+
   useEffect(() => {
-    if (!dealId) return;
+    if (!dealId || memory.get(dealId)?.ctx) return;
     (async () => {
       try {
         const c = unwrap<Ctx>(await hubspot.serverless('matrix_deal_context', { parameters: { dealId } }));
