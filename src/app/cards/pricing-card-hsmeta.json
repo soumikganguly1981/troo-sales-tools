@@ -1,0 +1,12 @@
+{
+  "uid": "pricing_card",
+  "type": "card",
+  "config": {
+    "name": "Pricing",
+    "location": "crm.record.tab",
+    "entrypoint": "/app/cards/PricingCard.tsx",
+    "objectTypes": [
+      "deals"
+    ]
+  }
+}
