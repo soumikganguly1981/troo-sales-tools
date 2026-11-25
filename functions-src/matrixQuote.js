@@ -47,7 +47,7 @@ exports.main = async (context) => {
     const d = await api('GET', `/crm/v3/objects/deals/${dealId}?properties=${PROP},dealname`);
     if (d.status !== 200) return fail(d.status, `Couldn't read the deal (${d.status})`);
     let items = parseShortlist(d.body.properties?.[PROP]);
-    if (!items.length) return fail(400, 'The shortlist is empty. Shortlist options in Matrix prices first.');
+    if (!items.length) return fail(400, 'The shortlist is empty. Shortlist options in Instant Quote first.');
     if (Array.isArray(p.keys) && p.keys.length) items = items.filter((i) => p.keys.includes(i.key));
 
     const company = items.find((i) => i.meter.company)?.meter.company || String(d.body.properties?.dealname || '').split(' - ')[0];

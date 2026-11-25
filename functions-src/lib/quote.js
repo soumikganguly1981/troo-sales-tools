@@ -188,7 +188,7 @@ function noteBody(items, company, fileName, by) {
   const groups = groupByMeter(items);
   const until = validUntil(items);
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  let html = `<p><strong>Customer quote saved</strong> from Matrix prices${by ? ` by ${esc(by)}` : ''}: ${items.length} option${items.length === 1 ? '' : 's'} across ${groups.length} meter${groups.length === 1 ? '' : 's'} for ${esc(company || 'the customer')}.${until ? ` Prices valid until ${uk(until)}.` : ''} Quote PDF attached: ${esc(fileName)}. Attach it to the "Your energy prices from Troo" email.</p>`;
+  let html = `<p><strong>Customer quote saved</strong> from the Pricing tab${by ? ` by ${esc(by)}` : ''}: ${items.length} option${items.length === 1 ? '' : 's'} across ${groups.length} meter${groups.length === 1 ? '' : 's'} for ${esc(company || 'the customer')}.${until ? ` Prices valid until ${uk(until)}.` : ''} Quote PDF attached: ${esc(fileName)}. Attach it to the "Your energy prices from Troo" email.</p>`;
   for (const g of groups) {
     html += `<p><strong>${esc(g.meter.meterNumber || 'Meter')}</strong> · ${Math.round(g.meter.aq).toLocaleString('en-GB')} kWh · from ${uk(g.meter.start)}</p><ul>`;
     for (const it of g.items) {

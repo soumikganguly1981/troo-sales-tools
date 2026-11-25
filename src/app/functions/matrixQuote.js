@@ -22240,7 +22240,7 @@ var require_quote = __commonJS({
       const groups = groupByMeter2(items);
       const until = validUntil(items);
       const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      let html = `<p><strong>Customer quote saved</strong> from Matrix prices${by ? ` by ${esc(by)}` : ""}: ${items.length} option${items.length === 1 ? "" : "s"} across ${groups.length} meter${groups.length === 1 ? "" : "s"} for ${esc(company || "the customer")}.${until ? ` Prices valid until ${uk(until)}.` : ""} Quote PDF attached: ${esc(fileName)}. Attach it to the "Your energy prices from Troo" email.</p>`;
+      let html = `<p><strong>Customer quote saved</strong> from the Pricing tab${by ? ` by ${esc(by)}` : ""}: ${items.length} option${items.length === 1 ? "" : "s"} across ${groups.length} meter${groups.length === 1 ? "" : "s"} for ${esc(company || "the customer")}.${until ? ` Prices valid until ${uk(until)}.` : ""} Quote PDF attached: ${esc(fileName)}. Attach it to the "Your energy prices from Troo" email.</p>`;
       for (const g of groups) {
         html += `<p><strong>${esc(g.meter.meterNumber || "Meter")}</strong> \xB7 ${Math.round(g.meter.aq).toLocaleString("en-GB")} kWh \xB7 from ${uk(g.meter.start)}</p><ul>`;
         for (const it of g.items) {
@@ -22302,7 +22302,7 @@ exports.main = async (context) => {
     const d = await api("GET", `/crm/v3/objects/deals/${dealId}?properties=${PROP},dealname`);
     if (d.status !== 200) return fail(d.status, `Couldn't read the deal (${d.status})`);
     let items = parseShortlist(d.body.properties?.[PROP]);
-    if (!items.length) return fail(400, "The shortlist is empty. Shortlist options in Matrix prices first.");
+    if (!items.length) return fail(400, "The shortlist is empty. Shortlist options in Instant Quote first.");
     if (Array.isArray(p.keys) && p.keys.length) items = items.filter((i) => p.keys.includes(i.key));
     const company = items.find((i) => i.meter.company)?.meter.company || String(d.body.properties?.dealname || "").split(" - ")[0];
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);

@@ -1,4 +1,4 @@
-// Customer quote: the options shortlisted in Matrix prices, grouped by meter.
+// Customer quote: the options shortlisted in Instant Quote (Pricing tab), grouped by meter.
 // Preview the quote PDF, then save it to the deal; it's the file attached to the
 // "Your energy prices from Troo" email and the quote the Customer accepted playbook points to.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -27,7 +27,9 @@ const ratesText = (o: Option) => {
   return [r.day != null && `Day ${p(r.day)}`, r.night != null && `Night ${p(r.night)}`, r.ew != null && `Eve/wkend ${p(r.ew)}`].filter(Boolean).join(' · ');
 };
 
-export const CustomerQuote = ({ dealId, userName }: { dealId: string; userName?: string }) => {
+type Props = { dealId: string; userName?: string; version?: number; onShortlist?: (count: number) => void };
+
+export const CustomerQuote = ({ dealId, userName, version = 0, onShortlist }: Props) => {
   const [items, setItems] = useState<Item[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -37,14 +39,16 @@ export const CustomerQuote = ({ dealId, userName }: { dealId: string; userName?:
     const out = unwrap<{ items?: Item[]; error?: string }>(await hubspot.serverless('matrix_shortlist', { parameters: { dealId, ...parameters } }));
     if (out.error) throw new Error(out.error);
     setItems(out.items || []);
-  }, [dealId]);
+    onShortlist?.((out.items || []).length);
+  }, [dealId, onShortlist]);
 
   const load = useCallback(async () => {
     setErr(null);
     try { await call({ action: 'get' }); } catch (e) { setErr(`Couldn't read the shortlist: ${(e as Error).message}`); }
   }, [call]);
 
-  useEffect(() => { load(); }, [load]);
+  // Reloads when options are ticked on the Instant Quote tab.
+  useEffect(() => { load(); }, [load, version]);
 
   const remove = async (key: string) => {
     setBusy(key); setErr(null); setResult(null);
@@ -103,7 +107,7 @@ export const CustomerQuote = ({ dealId, userName }: { dealId: string; userName?:
 
       {items && !items.length ? (
         <EmptyState title="Start your shortlist" layout="vertical" imageName="addOnReporting">
-          <Text>Price a meter on the Matrix prices tab and tick the options you want to offer. They collect here, ready to save as the customer's quote.</Text>
+          <Text>Price a meter on the Instant Quote tab and tick the options you want to offer. They collect here, ready to save as the customer's quote.</Text>
         </EmptyState>
       ) : (
         <>
