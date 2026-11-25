@@ -18,10 +18,10 @@ const Pricing = ({ dealId, userName }: { dealId: string; userName: string }) => 
   const [quoteVersion, setQuoteVersion] = useState(0);
   const [matrixVersion, setMatrixVersion] = useState(0);
 
-  // Ticked in Instant Quote: refresh the Customer quote list.
-  const fromInstant = useCallback((n: number) => { setCount(n); setQuoteVersion((v) => v + 1); }, []);
-  // Changed (or reloaded) in Customer quote: refresh the ticks in Instant Quote.
-  const fromQuote = useCallback((n: number) => { setCount(n); setMatrixVersion((v) => v + 1); }, []);
+  // A tick in Instant Quote refreshes the Customer quote list; a change in Customer quote
+  // (remove, clear, save) refreshes the ticks. Plain reloads only update the count.
+  const fromInstant = useCallback((n: number, changed: boolean) => { setCount(n); if (changed) setQuoteVersion((v) => v + 1); }, []);
+  const fromQuote = useCallback((n: number, changed: boolean) => { setCount(n); if (changed) setMatrixVersion((v) => v + 1); }, []);
 
   return (
     <Tabs variant="enclosed" selected={tab} onSelectedChange={(id: string | number) => setTab(String(id))}>
