@@ -12,7 +12,7 @@ type Meter = {
   start: string | null; current: string | null; notes: string[];
 };
 type Book = { fuel: string; supplier: string; quoteBy: string | null };
-type Ctx = { dealName: string; meters: Meter[]; books: Book[]; booksError: string | null; notes: string[]; error?: string };
+type Ctx = { dealName: string; meters: Meter[]; books: Book[]; stipulated?: string[]; booksError: string | null; notes: string[]; error?: string };
 type Option = {
   supplier: string; products: string[]; term: number; endDate: string | null; green: boolean;
   rates: { unit: number | null; day: number | null; night: number | null; ew: number | null };
@@ -65,6 +65,8 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
   }, [dealId]);
 
   const suppliers = useMemo(() => [...new Set((ctx?.books || []).map((b) => b.supplier))].sort(), [ctx]);
+  const capped = (s: string) => (ctx?.stipulated || []).includes(s);
+  const noComm = suppliers.filter((s) => !capped(s) && comm[s] == null);
   const edit = (id: string, patch: Partial<Meter>) => setMeters((ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
 
   const price = async () => {
@@ -109,7 +111,7 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
             <TableHead>
               <TableRow>
                 <TableHeader>Price</TableHeader><TableHeader>Meter</TableHeader><TableHeader>Type</TableHeader>
-                <TableHeader>Usage (kWh)</TableHeader><TableHeader>Day %</TableHeader><TableHeader>Band</TableHeader><TableHeader>Start</TableHeader>
+                <TableHeader width={120}>Usage (kWh)</TableHeader><TableHeader width={80}>Day %</TableHeader><TableHeader>Band</TableHeader><TableHeader>Start</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -122,8 +124,8 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
                     {m.notes.map((n) => <Tag key={n} variant="warning">{n}</Tag>)}
                   </TableCell>
                   <TableCell>{RATE[m.rateType] || m.rateType}</TableCell>
-                  <TableCell><NumberInput name={`aq-${m.id}`} label="" value={m.aq || undefined} onChange={(v: number) => edit(m.id, { aq: v })} /></TableCell>
-                  <TableCell>{['daynight', 'ew', 'ewn', 'hh'].includes(m.rateType)
+                  <TableCell width={120}><NumberInput name={`aq-${m.id}`} label="" value={m.aq || undefined} onChange={(v: number) => edit(m.id, { aq: v })} /></TableCell>
+                  <TableCell width={80}>{['daynight', 'ew', 'ewn', 'hh'].includes(m.rateType)
                     ? <NumberInput name={`ds-${m.id}`} label="" placeholder="75" min={0} max={100} value={m.dayShare ?? undefined} onChange={(v: number) => edit(m.id, { dayShare: v })} />
                     : '-'}</TableCell>
                   <TableCell>{m.fuel === 'G' ? '-' : <Select name={`band-${m.id}`} label="" options={BANDS} value={m.band || '1'} onChange={(v) => edit(m.id, { band: String(v) })} />}</TableCell>
@@ -142,11 +144,16 @@ export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
           <Text variant="microcopy">Fixed end date products (e.g. EOC) always show, priced to their end date.</Text>
           <Flex direction="row" gap="sm" wrap="wrap">
             {suppliers.map((s) => (
-              <NumberInput key={s} name={`comm-${s}`} label={`${s} (p/kWh)`} precision={3} min={0} placeholder="Max allowed"
+              <NumberInput key={s} name={`comm-${s}`} label={`${s} (p/kWh)`} precision={3} min={0} placeholder={capped(s) ? 'Max allowed' : 'Enter commission'}
                 value={comm[s] ?? undefined} onChange={(v: number) => setComm((c) => ({ ...c, [s]: v }))} />
             ))}
           </Flex>
-          <Text variant="microcopy">Leave commission blank to use each supplier's maximum from the stipulations. It's never set above that maximum.</Text>
+          <Text variant="microcopy">Where a supplier has a stipulation, leave commission blank to use its maximum. It's never set above that maximum.</Text>
+          {noComm.length > 0 && (
+            <Alert title="Commission needed" variant="warning">
+              {noComm.join(', ')} {noComm.length === 1 ? 'has' : 'have'} no stipulation, so there's no maximum to use. Enter a commission in p/kWh, or {noComm.length === 1 ? 'its' : 'their'} prices will include none.
+            </Alert>
+          )}
           <Flex direction="row" gap="sm">
             <Select name="dd" label="Pays by Direct Debit" options={YNA} value={dd} onChange={(v) => setDd(String(v))} />
             <Select name="amr" label="Smart / AMR meter" options={YNA} value={amr} onChange={(v) => setAmr(String(v))} />
