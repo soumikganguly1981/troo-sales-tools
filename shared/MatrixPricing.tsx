@@ -1,0 +1,215 @@
+// SOURCE FILE. Edit here, then run `npm run sync` to copy into src/app/cards.
+// Matrix prices: prices every meter on the deal from the live supplier price books.
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Accordion, Alert, Button, Checkbox, DateInput, Divider, Flex, Heading, LoadingSpinner, NumberInput,
+  Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag, Text, hubspot,
+} from '@hubspot/ui-extensions';
+
+type Meter = {
+  id: string; meterNumber: string; fuel: 'E' | 'G' | 'HH'; region: string | null; profile: string | null; rateType: string;
+  band: string | null; aq: number; dayShare: number | null; kva: number | null; voltage: string | null; exitZone: string | null;
+  start: string | null; current: string | null; notes: string[];
+};
+type Book = { fuel: string; supplier: string; quoteBy: string | null };
+type Ctx = { dealName: string; meters: Meter[]; books: Book[]; booksError: string | null; notes: string[]; error?: string };
+type Option = {
+  supplier: string; products: string[]; term: number; endDate: string | null; green: boolean;
+  rates: { unit: number | null; day: number | null; night: number | null; ew: number | null };
+  sc: number; kvaCharge: number | null; capacityMissingKva: boolean; annual: number; commission: number; totalComms: number;
+  quoteBy: string | null; expired: boolean; splitAssumed: boolean;
+};
+type MeterResult = { meterId: string; errors: string[]; options: Option[]; truncated?: boolean; missing: { supplier: string; reason: string }[]; caps?: Record<string, number | null> };
+type PriceResponse = { today: string; results: MeterResult[]; error?: string };
+type DateVal = { year: number; month: number; date: number };
+
+const FUEL = { E: 'Electricity', HH: 'Half-hourly', G: 'Gas' } as const;
+const RATE = { single: 'Single rate', daynight: 'Day/night', ew: 'Evening/weekend', ewn: 'Eve/wkend/night', hh: 'Half-hourly' } as Record<string, string>;
+const TERMS = [12, 24, 36, 48, 60];
+const BANDS = ['1', '2', '3', '4'].map((v) => ({ value: v, label: `Band ${v}` }));
+const YNA = [{ value: 'any', label: 'Any' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }];
+
+const gbp = (v: number) => v.toLocaleString('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 });
+const p = (v: number | null) => (v == null ? '-' : `${v.toFixed(3)}p`);
+const uk = (iso: string | null) => (iso ? iso.split('-').reverse().join('/') : '');
+const toDate = (iso: string | null): DateVal | undefined => { if (!iso) return undefined; const [y, m, d] = iso.split('-').map(Number); return { year: y, month: m - 1, date: d }; };
+const fromDate = (v: DateVal | null) => (v ? `${v.year}-${String(v.month + 1).padStart(2, '0')}-${String(v.date).padStart(2, '0')}` : null);
+const yn = (v: string) => (v === 'yes' ? true : v === 'no' ? false : null);
+const ratesText = (o: Option) => (o.rates.unit != null ? p(o.rates.unit) : [o.rates.day, o.rates.night, o.rates.ew].filter((x) => x != null).map((x) => p(x)).join(' / '));
+const unwrap = <T,>(r: unknown): T => ((r as { body?: T })?.body ?? r) as T;
+
+export const MatrixPricing = ({ dealId }: { dealId?: string | null }) => {
+  const [ctx, setCtx] = useState<Ctx | null>(null);
+  const [meters, setMeters] = useState<Meter[]>([]);
+  const [chosen, setChosen] = useState<Record<string, boolean>>({});
+  const [terms, setTerms] = useState<number[]>([12, 24, 36, 48]);
+  const [comm, setComm] = useState<Record<string, number | null>>({});
+  const [dd, setDd] = useState('any');
+  const [amr, setAmr] = useState('any');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [res, setRes] = useState<PriceResponse | null>(null);
+  const [termView, setTermView] = useState('all');
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!dealId) return;
+    (async () => {
+      try {
+        const c = unwrap<Ctx>(await hubspot.serverless('matrix_deal_context', { parameters: { dealId } }));
+        if (c.error) { setErr(c.error); return; }
+        setCtx(c); setMeters(c.meters);
+        setChosen(Object.fromEntries(c.meters.map((m) => [m.id, true])));
+      } catch (e) { setErr(`Couldn't read the deal: ${(e as Error).message}`); }
+    })();
+  }, [dealId]);
+
+  const suppliers = useMemo(() => [...new Set((ctx?.books || []).map((b) => b.supplier))].sort(), [ctx]);
+  const edit = (id: string, patch: Partial<Meter>) => setMeters((ms) => ms.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+
+  const price = async () => {
+    setBusy(true); setErr(null); setSaveMsg(null);
+    try {
+      const commission = Object.fromEntries(Object.entries(comm).filter(([, v]) => v != null));
+      const r = unwrap<PriceResponse>(await hubspot.serverless('matrix_price', {
+        parameters: { meters: meters.filter((m) => chosen[m.id]), terms, commission, dd: yn(dd), amr: yn(amr) },
+      }));
+      if (r.error) setErr(r.error); else setRes(r);
+    } catch (e) { setErr(`Couldn't price: ${(e as Error).message}`); }
+    setBusy(false);
+  };
+
+  const save = async (m: Meter, o: Option) => {
+    setSaveMsg(null);
+    try {
+      const out = unwrap<{ saved?: boolean; error?: string }>(await hubspot.serverless('stip_save_estimate', {
+        parameters: { dealId, supplier: o.supplier, product: o.products.join(' / '), comms: o.commission, term: o.term, annual: (m.aq * o.commission) / 100, total: o.totalComms },
+      }));
+      setSaveMsg(out.saved ? { ok: true, text: `Saved ${o.supplier} ${o.products[0]}, ${o.term} months, ${gbp(o.totalComms)} commission, to this deal.` } : { ok: false, text: out.error || "Couldn't save to the deal." });
+    } catch (e) { setSaveMsg({ ok: false, text: `Couldn't save to the deal: ${(e as Error).message}` }); }
+  };
+
+  if (!ctx && !err) return <LoadingSpinner label="Reading the deal's meters" />;
+
+  return (
+    <Flex direction="column" gap="md">
+      {err && <Alert title="Something went wrong" variant="error">{err}</Alert>}
+      {ctx && (
+        <>
+          <Text>
+            {suppliers.length
+              ? `Live price books: ${suppliers.join(', ')}. Prices exclude CCL and VAT, and include the commission below.`
+              : 'No price books are loaded yet.'}
+          </Text>
+          {ctx.booksError && <Alert title="Price books" variant="warning">{ctx.booksError}</Alert>}
+          {ctx.notes.map((n) => <Alert key={n} title="Note" variant="info">{n}</Alert>)}
+
+          <Heading>1. Meters</Heading>
+          <Table bordered>
+            <TableHead>
+              <TableRow>
+                <TableHeader>Price</TableHeader><TableHeader>Meter</TableHeader><TableHeader>Type</TableHeader>
+                <TableHeader>Usage (kWh)</TableHeader><TableHeader>Day %</TableHeader><TableHeader>Band</TableHeader><TableHeader>Start</TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {meters.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell><Checkbox name={`use-${m.id}`} checked={!!chosen[m.id]} onChange={(v: boolean) => setChosen((c) => ({ ...c, [m.id]: v }))} /></TableCell>
+                  <TableCell>
+                    <Text format={{ fontWeight: 'demibold' }}>{m.meterNumber || m.id}</Text>
+                    <Text variant="microcopy">{FUEL[m.fuel]} · {m.fuel === 'G' ? `Zone ${m.region || '?'}` : `Region ${m.region || '?'}${m.profile ? ` · PC ${m.profile}` : ''}`}</Text>
+                    {m.notes.map((n) => <Tag key={n} variant="warning">{n}</Tag>)}
+                  </TableCell>
+                  <TableCell>{RATE[m.rateType] || m.rateType}</TableCell>
+                  <TableCell><NumberInput name={`aq-${m.id}`} label="" value={m.aq || undefined} onChange={(v: number) => edit(m.id, { aq: v })} /></TableCell>
+                  <TableCell>{['daynight', 'ew', 'ewn', 'hh'].includes(m.rateType)
+                    ? <NumberInput name={`ds-${m.id}`} label="" placeholder="75" min={0} max={100} value={m.dayShare ?? undefined} onChange={(v: number) => edit(m.id, { dayShare: v })} />
+                    : '-'}</TableCell>
+                  <TableCell>{m.fuel === 'G' ? '-' : <Select name={`band-${m.id}`} label="" options={BANDS} value={m.band || '1'} onChange={(v) => edit(m.id, { band: String(v) })} />}</TableCell>
+                  <TableCell><DateInput name={`start-${m.id}`} label="" format="L" value={toDate(m.start)} onChange={(v) => edit(m.id, { start: fromDate(v as DateVal | null) })} /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          <Heading>2. Terms and commission</Heading>
+          <Flex direction="row" gap="sm" wrap="wrap">
+            {TERMS.map((t) => (
+              <Checkbox key={t} name={`term-${t}`} checked={terms.includes(t)} onChange={(v: boolean) => setTerms((ts) => (v ? [...ts, t].sort((a, b) => a - b) : ts.filter((x) => x !== t)))}>{t} months</Checkbox>
+            ))}
+          </Flex>
+          <Text variant="microcopy">Fixed end date products (e.g. EOC) always show, priced to their end date.</Text>
+          <Flex direction="row" gap="sm" wrap="wrap">
+            {suppliers.map((s) => (
+              <NumberInput key={s} name={`comm-${s}`} label={`${s} (p/kWh)`} precision={3} min={0} placeholder="Max allowed"
+                value={comm[s] ?? undefined} onChange={(v: number) => setComm((c) => ({ ...c, [s]: v }))} />
+            ))}
+          </Flex>
+          <Text variant="microcopy">Leave commission blank to use each supplier's maximum from the stipulations. It's never set above that maximum.</Text>
+          <Flex direction="row" gap="sm">
+            <Select name="dd" label="Pays by Direct Debit" options={YNA} value={dd} onChange={(v) => setDd(String(v))} />
+            <Select name="amr" label="Smart / AMR meter" options={YNA} value={amr} onChange={(v) => setAmr(String(v))} />
+          </Flex>
+          <Button variant="primary" onClick={price} disabled={busy || !meters.some((m) => chosen[m.id])}>{busy ? 'Pricing…' : 'Get matrix prices'}</Button>
+        </>
+      )}
+
+      {res && (
+        <>
+          <Divider />
+          <Heading>3. Prices</Heading>
+          <Select name="termView" label="Show" options={[{ value: 'all', label: 'All terms' }, ...TERMS.map((t) => ({ value: String(t), label: `${t} months` }))]} value={termView} onChange={(v) => setTermView(String(v))} />
+          {saveMsg && <Alert title={saveMsg.ok ? 'Saved' : "Couldn't save"} variant={saveMsg.ok ? 'success' : 'error'}>{saveMsg.text}</Alert>}
+          {res.results.map((r) => {
+            const m = meters.find((x) => x.id === r.meterId)!;
+            const opts = r.options.filter((o) => termView === 'all' || String(o.term) === termView);
+            return (
+              <Accordion key={r.meterId} title={`${m.meterNumber || m.id} · ${FUEL[m.fuel]} · ${r.errors.length ? 'needs details' : `${r.options.length} prices`}`} defaultOpen>
+                {r.errors.map((e) => <Alert key={e} title="Can't price this meter yet" variant="warning">{e}</Alert>)}
+                {!!opts.length && (
+                  <Table bordered>
+                    <TableHead>
+                      <TableRow>
+                        <TableHeader>Supplier</TableHeader><TableHeader>Product</TableHeader><TableHeader>Term</TableHeader>
+                        <TableHeader>Annual cost</TableHeader><TableHeader>Commission</TableHeader><TableHeader>Rates</TableHeader>
+                        <TableHeader>Standing charge</TableHeader><TableHeader>Save</TableHeader>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {opts.map((o, i) => (
+                        <TableRow key={`${o.supplier}-${i}`}>
+                          <TableCell>{o.supplier}</TableCell>
+                          <TableCell>
+                            <Text>{o.products.join(' / ')}</Text>
+                            {o.green && <Tag variant="success">Green</Tag>}
+                            {o.expired && <Tag variant="error">Out of date</Tag>}
+                            {o.capacityMissingKva && <Tag variant="warning">No kVA</Tag>}
+                          </TableCell>
+                          <TableCell>{o.endDate ? `To ${uk(o.endDate)} (${o.term}m)` : `${o.term} months`}</TableCell>
+                          <TableCell>{gbp(o.annual)}</TableCell>
+                          <TableCell>{gbp(o.totalComms)} <Text variant="microcopy">{o.commission}p/kWh</Text></TableCell>
+                          <TableCell>{ratesText(o)}</TableCell>
+                          <TableCell>{o.sc ? `${o.sc.toFixed(2)}p/day` : 'None'}{o.kvaCharge ? ` + ${o.kvaCharge}p/kVA/m` : ''}</TableCell>
+                          <TableCell><Button size="xs" onClick={() => save(m, o)} disabled={!dealId}>Save to deal</Button></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+                {r.truncated && <Text variant="microcopy">Showing the cheapest 150 prices.</Text>}
+                {!!r.missing.length && (
+                  <>
+                    <Text format={{ fontWeight: 'demibold' }}>Not quoting</Text>
+                    {r.missing.map((x) => <Text key={x.supplier}>{x.supplier}: {x.reason}</Text>)}
+                  </>
+                )}
+                {r.options.some((o) => o.splitAssumed) && <Text variant="microcopy">Day/night split assumed 75/25. Enter the meter's day % to change it.</Text>}
+              </Accordion>
+            );
+          })}
+        </>
+      )}
+    </Flex>
+  );
+};
