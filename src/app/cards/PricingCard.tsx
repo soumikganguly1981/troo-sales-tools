@@ -2,7 +2,7 @@
 // (the shortlist and the quote PDF). The two share the deal's shortlist, so ticking an option
 // on one updates the other.
 import React, { useCallback, useState } from 'react';
-import { Tab, Tabs, hubspot } from '@hubspot/ui-extensions';
+import { Flex, Tab, Tabs, hubspot } from '@hubspot/ui-extensions';
 import type { CrmContext, ExtensionPointApiActions } from '@hubspot/ui-extensions';
 import { MatrixPricing } from './MatrixPricing.tsx';
 import { CustomerQuote } from './CustomerQuote.tsx';
@@ -13,6 +13,7 @@ interface Props {
 }
 
 const Pricing = ({ dealId, userName }: { dealId: string; userName: string }) => {
+  const [tab, setTab] = useState('instant');
   const [count, setCount] = useState<number | null>(null);
   const [quoteVersion, setQuoteVersion] = useState(0);
   const [matrixVersion, setMatrixVersion] = useState(0);
@@ -22,16 +23,18 @@ const Pricing = ({ dealId, userName }: { dealId: string; userName: string }) => 
   const fromInstant = useCallback((n: number, changed: boolean) => { setCount(n); if (changed) setQuoteVersion((v) => v + 1); }, []);
   const fromQuote = useCallback((n: number, changed: boolean) => { setCount(n); if (changed) setMatrixVersion((v) => v + 1); }, []);
 
+  // The Tabs are only the header: content placed inside a Tab didn't update on first load
+  // until a tab was clicked, so the active sub-tab is rendered below them instead.
   return (
-    // Uncontrolled: with a controlled `selected`, the first sub-tab didn't update until a switch.
-    <Tabs variant="enclosed" defaultSelected="instant">
-      <Tab tabId="instant" title="Instant Quote">
-        <MatrixPricing dealId={dealId} userName={userName} shortlistVersion={matrixVersion} onShortlist={fromInstant} />
-      </Tab>
-      <Tab tabId="quote" title={count ? `Customer quote (${count})` : 'Customer quote'}>
-        <CustomerQuote dealId={dealId} userName={userName} version={quoteVersion} onShortlist={fromQuote} />
-      </Tab>
-    </Tabs>
+    <Flex direction="column" gap="md">
+      <Tabs variant="enclosed" defaultSelected="instant" onSelectedChange={(id: string | number) => setTab(String(id))}>
+        <Tab tabId="instant" title="Instant Quote" />
+        <Tab tabId="quote" title={count ? `Customer quote (${count})` : 'Customer quote'} />
+      </Tabs>
+      {tab === 'instant'
+        ? <MatrixPricing dealId={dealId} userName={userName} shortlistVersion={matrixVersion} onShortlist={fromInstant} />
+        : <CustomerQuote dealId={dealId} userName={userName} version={quoteVersion} onShortlist={fromQuote} />}
+    </Flex>
   );
 };
 
