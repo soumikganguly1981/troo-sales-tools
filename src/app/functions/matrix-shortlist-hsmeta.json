@@ -1,0 +1,8 @@
+{
+  "uid": "matrix_shortlist",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/matrixShortlist.js",
+    "secretKeys": []
+  }
+}
