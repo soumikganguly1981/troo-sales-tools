@@ -14,7 +14,7 @@
         "crm.objects.custom.read",
         "hubdb.tables.read",
         "hubdb.rows.read",
-        "files"
+        "files.read"
       ],
       "optionalScopes": [],
       "conditionallyRequiredScopes": []
