@@ -27,7 +27,7 @@ const ratesText = (o: Option) => {
   return [r.day != null && `Day ${p(r.day)}`, r.night != null && `Night ${p(r.night)}`, r.ew != null && `Eve/wkend ${p(r.ew)}`].filter(Boolean).join(' · ');
 };
 
-type Props = { dealId: string; userName?: string; version?: number; onShortlist?: (count: number) => void };
+type Props = { dealId: string; userName?: string; version?: number; onShortlist?: (count: number, changed: boolean) => void };
 
 export const CustomerQuote = ({ dealId, userName, version = 0, onShortlist }: Props) => {
   const [items, setItems] = useState<Item[] | null>(null);
@@ -35,11 +35,12 @@ export const CustomerQuote = ({ dealId, userName, version = 0, onShortlist }: Pr
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<QuoteResult | null>(null);
 
-  const call = useCallback(async (parameters: Record<string, unknown>) => {
+  // Only changes (not plain reloads) tell Instant Quote to refresh its ticks.
+  const call = useCallback(async (parameters: Record<string, unknown>, changed = false) => {
     const out = unwrap<{ items?: Item[]; error?: string }>(await hubspot.serverless('matrix_shortlist', { parameters: { dealId, ...parameters } }));
     if (out.error) throw new Error(out.error);
     setItems(out.items || []);
-    onShortlist?.((out.items || []).length);
+    onShortlist?.((out.items || []).length, changed);
   }, [dealId, onShortlist]);
 
   const load = useCallback(async () => {
@@ -52,12 +53,12 @@ export const CustomerQuote = ({ dealId, userName, version = 0, onShortlist }: Pr
 
   const remove = async (key: string) => {
     setBusy(key); setErr(null); setResult(null);
-    try { await call({ action: 'remove', key }); } catch (e) { setErr(`Couldn't remove it: ${(e as Error).message}`); }
+    try { await call({ action: 'remove', key }, true); } catch (e) { setErr(`Couldn't remove it: ${(e as Error).message}`); }
     setBusy(null);
   };
   const clear = async () => {
     setBusy('clear'); setErr(null); setResult(null);
-    try { await call({ action: 'clear' }); } catch (e) { setErr(`Couldn't clear the shortlist: ${(e as Error).message}`); }
+    try { await call({ action: 'clear' }, true); } catch (e) { setErr(`Couldn't clear the shortlist: ${(e as Error).message}`); }
     setBusy(null);
   };
   const quote = async (action: 'preview' | 'save') => {
@@ -65,7 +66,7 @@ export const CustomerQuote = ({ dealId, userName, version = 0, onShortlist }: Pr
     try {
       const out = unwrap<QuoteResult>(await hubspot.serverless('matrix_quote', { parameters: { dealId, action, by: userName } }));
       if (out.error) setErr(out.error); else setResult(out);
-      if (action === 'save' && !out.error) await call({ action: 'get' });
+      if (action === 'save' && !out.error) await call({ action: 'get' }, true);
     } catch (e) { setErr(`Couldn't ${action === 'save' ? 'save' : 'preview'} the quote: ${(e as Error).message}`); }
     setBusy(null);
   };

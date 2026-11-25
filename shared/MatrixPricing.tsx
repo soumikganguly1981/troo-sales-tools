@@ -96,7 +96,7 @@ const WithUnit = ({ unit, children }: { unit: string; children: React.ReactNode 
   </Flex>
 );
 
-type Props = { dealId?: string | null; userName?: string; shortlistVersion?: number; onShortlist?: (count: number) => void };
+type Props = { dealId?: string | null; userName?: string; shortlistVersion?: number; onShortlist?: (count: number, changed: boolean) => void };
 
 export const MatrixPricing = ({ dealId, userName, shortlistVersion = 0, onShortlist }: Props) => {
   const [ctx, setCtx] = useState<Ctx | null>(null);
@@ -129,6 +129,7 @@ export const MatrixPricing = ({ dealId, userName, shortlistVersion = 0, onShortl
       try {
         const sl = unwrap<{ items?: ShortItem[] }>(await hubspot.serverless('matrix_shortlist', { parameters: { dealId, action: 'get' } }));
         setListed(new Set((sl.items || []).map((i) => i.key)));
+        onShortlist?.((sl.items || []).length, false);
       } catch { /* the ticks just start empty */ }
     })();
   }, [dealId, shortlistVersion]);
@@ -188,7 +189,7 @@ export const MatrixPricing = ({ dealId, userName, shortlistVersion = 0, onShortl
       if (out.error) setSaveMsg({ ok: false, text: out.error });
       else {
         setListed(new Set((out.items || []).map((i) => i.key)));
-        onShortlist?.((out.items || []).length);
+        onShortlist?.((out.items || []).length, true);
         setSaveMsg({ ok: true, text: `${on ? 'Added to' : 'Removed from'} the shortlist (${(out.items || []).length} option${(out.items || []).length === 1 ? '' : 's'}). Open the Customer quote tab above to review and save the quote.` });
       }
     } catch (e) { setSaveMsg({ ok: false, text: `Couldn't update the shortlist: ${(e as Error).message}` }); }
