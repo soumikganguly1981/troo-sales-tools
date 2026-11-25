@@ -1,0 +1,32 @@
+name: Load matrix price books
+
+# Picks up supplier price files from HubSpot "Price books/Incoming", checks them and publishes
+# one book per supplier, fuel and region (hubdb/load_price_books.py).
+on:
+  schedule:
+    - cron: "*/15 6-19 * * 1-5"   # every 15 minutes, 06:00-19:59 UTC, Monday to Friday
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: check files without publishing (true/false)"
+        default: "true"
+
+concurrency:
+  group: price-books
+  cancel-in-progress: false
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r hubdb/requirements-price-books.txt
+      - name: Load price books
+        run: python hubdb/load_price_books.py
+        env:
+          HUBSPOT_PRICEBOOK_TOKEN: ${{ secrets.HUBSPOT_PRICEBOOK_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
