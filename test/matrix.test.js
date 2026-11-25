@@ -114,3 +114,17 @@ test('meter facts come from the MPAN, meter type and the new fields', () => {
   assert.equal(hh.fuel, 'HH');
   assert.equal(hh.rateType, 'hh');
 });
+
+test('no-price reason names the real blocker: a start date past the book window', () => {
+  const objs = [
+    { product: 'Fix', rate_type: 'single', profile: '03', band: '1', aq_min: 1, aq_max: 300000, term: 12, start_from: '2026-11-24', start_to: '2027-11-30', unit: 25, sc_p_day: 60 },
+    { product: 'Fix', rate_type: 'daynight', profile: '03', band: '1', aq_min: 1, aq_max: 300000, term: 12, start_from: '2026-11-24', start_to: '2027-11-30', day: 25, night: 20, sc_p_day: 60 },
+    { product: 'Fix', rate_type: 'daynight', profile: '04', band: '1', aq_min: 1, aq_max: 300000, term: 12, start_from: '2026-11-24', start_to: '2027-11-30', day: 25, night: 20, sc_p_day: 60 },
+  ];
+  const cols = [...new Set(objs.flatMap(Object.keys))];
+  const book = { meta: { supplier: 'Yu Energy', contract_type: 'ACQ' }, cols, rows: objs.map((o) => cols.map((c) => o[c] ?? null)) };
+  const m = { fuel: 'E', region: '10', profile: '03', rateType: 'single', band: '1', aq: 3000, start: '2029-04-09' };
+  const r = priceMeter(m, [book], { terms: [12] });
+  assert.equal(r.options.length, 0);
+  assert.match(r.missing[0].reason, /after the latest start this book quotes \(30\/11\/2027\)/);
+});
