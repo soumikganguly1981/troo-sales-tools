@@ -9,5 +9,5 @@ interface Props {
 }
 
 hubspot.extend<'crm.record.tab'>(({ context }: Props) => (
-  <MatrixPricing dealId={String(context.crm.objectId)} />
+  <MatrixPricing dealId={String(context.crm.objectId)} userName={[context.user?.firstName, context.user?.lastName].filter(Boolean).join(' ')} />
 ));
