@@ -3,6 +3,7 @@
 Private HubSpot app for Troo's sales teams.
 
 - **Supplier revenue calculator**: ranks every supplier product by the commission it earns on a deal. Shown as a card on Deal records (prefilled from the deal's meters and CED, with "Save to deal") and as an app page for quick checks.
+- **Matrix prices**: prices every meter on a deal from the suppliers' matrix price books, adds commission (capped by the stipulations), ranks the options, lists which suppliers aren't quoting and why, and saves the chosen option to the deal. Shown as a card on Deal records.
 - **Fixed price comparison**: next.
 
 ## How it fits together
@@ -15,6 +16,26 @@ Private HubSpot app for Troo's sales teams.
 | Save to deal | App function `stip_save_estimate` writes the `est_comms_*` Deal properties. Never writes `amount` |
 | UI | `shared/RevenueCalculator.tsx`, copied into the card and the page by `npm run sync` |
 
+## Matrix prices
+
+| Part | Where |
+|---|---|
+| Price books | HubSpot file manager, `Price books/Live`: one private JSON file per supplier, fuel, contract type (ACQ/REN) and region |
+| Index of live books | HubDB table `price_books` (Matrix price books): status `live` / `superseded`, quote-by date, source file, checks |
+| Loader | GitHub Action *Load matrix price books* runs `hubdb/load_price_books.py` every 15 minutes (weekdays 06:00-20:00 UTC) and on demand. Needs repository secret `HUBSPOT_PRICEBOOK_TOKEN` (private app token, scopes `files` and `hubdb`) |
+| Engine | `functions-src/lib/matrix.js`, pure and tested against two real Utility Click quotes in `test/matrix.test.js`. Commission caps and eligibility come from the stipulation tables through `lib/engine.js` |
+| Functions | `matrix_deal_context` (the deal's meters and the live books), `matrix_price` (prices the chosen meters). Save to deal reuses `stip_save_estimate` |
+| Meter fields | `mp_band`, `mp_day_share_pct` (blank = 75), `mp_hh_voltage`, `mp_metering`, `mp_gas_ldz`, `mp_gas_exit_zone`, plus `kva`, `meter_type`, the MPAN lines and AQ |
+| UI | `shared/MatrixPricing.tsx`, copied into the card by `npm run sync` |
+
+### Loading a supplier's price book
+
+1. Drop the file (standard UD template, named like `UD_Soar_YU_ELE_ACQ_241126.xlsx`) into `Price books/Incoming` in the file manager.
+2. Within 15 minutes it moves to `Processed` and its books show as live. A file that fails the checks moves to `Failed`; the reason is in the Action's log.
+3. A new supplier code needs one line in `SUPPLIER_CODES` in the loader.
+
+To check a file without HubSpot: `python hubdb/load_price_books.py --local FILE.xlsx`
+
 ## Monthly stipulation update
 
 1. Edit the rows in HubDB (Content > HubDB) and publish. No code release needed.
@@ -26,7 +47,7 @@ Edit functions in `functions-src/`, never in `src/app/functions/`: HubSpot packa
 
 ```sh
 npm ci           # once
-npm run build    # after editing functions-src/ or shared/RevenueCalculator.tsx
+npm run build    # after editing functions-src/ or shared/*.tsx
 npm test         # engine + function tests against the bundles (no HubSpot needed)
 ```
 
