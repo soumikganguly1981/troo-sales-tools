@@ -43,9 +43,14 @@ export const CustomerQuote = ({ dealId, userName, version = 0, onShortlist }: Pr
     onShortlist?.((out.items || []).length, changed);
   }, [dealId, onShortlist]);
 
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const load = useCallback(async () => {
-    setErr(null);
-    try { await call({ action: 'get' }); } catch (e) { setErr(`Couldn't read the shortlist: ${(e as Error).message}`); }
+    setErr(null); setBusy('refresh');
+    try {
+      await call({ action: 'get' });
+      setCheckedAt(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    } catch (e) { setErr(`Couldn't read the shortlist: ${(e as Error).message}`); }
+    setBusy(null);
   }, [call]);
 
   // Reloads when options are ticked on the Instant Quote tab.
@@ -90,7 +95,10 @@ export const CustomerQuote = ({ dealId, userName, version = 0, onShortlist }: Pr
     <Flex direction="column" gap="md">
       <Flex direction="row" justify="between" align="center">
         <Heading>Customer quote{company ? ` · ${company}` : ''}</Heading>
-        <Button size="sm" onClick={load} disabled={!!busy}>Refresh</Button>
+        <Flex direction="row" gap="xs" align="center">
+          {checkedAt && <Text variant="microcopy">Up to date at {checkedAt}</Text>}
+          <Button size="sm" onClick={load} disabled={!!busy}>{busy === 'refresh' ? 'Refreshing…' : 'Refresh'}</Button>
+        </Flex>
       </Flex>
       {err && <Alert title="Something went wrong" variant="error">{err}</Alert>}
       {result?.saved && (
