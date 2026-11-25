@@ -15,8 +15,10 @@ How it's used
 Safe by default: DRY_RUN=true reads and checks files and prints what it would do, writing nothing.
 Local test without HubSpot:  python load_price_books.py --local FILE.xlsx [FILE2 ...]  (writes ./out/*.json)
 
-Secrets (GitHub repository secret): HUBSPOT_PRICEBOOK_TOKEN, a private app token with the scopes
-  files, hubdb
+Credentials, either of:
+  HUBSPOT_PERSONAL_ACCESS_KEY (+ HUBSPOT_ACCOUNT_ID): the HubSpot CLI personal access key already used for
+    deploys. It is exchanged for a short-lived access token. The key needs the Files and HubDB scopes.
+  HUBSPOT_PRICEBOOK_TOKEN: a private app token with the scopes files, hubdb (used if set).
 """
 import io, json, os, re, sys, time, datetime as dt
 import requests
@@ -24,6 +26,8 @@ import pandas as pd
 
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() != "false"
 TOKEN = os.getenv("HUBSPOT_PRICEBOOK_TOKEN", "")
+PAK = os.getenv("HUBSPOT_PERSONAL_ACCESS_KEY", "")
+ACCOUNT_ID = os.getenv("HUBSPOT_ACCOUNT_ID", "")
 BASE = "https://api.hubapi.com"
 TABLE = "price_books"
 FOLDERS = {"incoming": "/Price books/Incoming", "live": "/Price books/Live",
@@ -206,12 +210,37 @@ def book_file_name(b):
 
 # ---------------------------------------------------------------- HubSpot
 H = {"Authorization": f"Bearer {TOKEN}"}
+_pak_expires = 0.0
+
+
+def pak_token():
+    """Exchange the CLI personal access key for an access token (what `hs` does)."""
+    global _pak_expires
+    q = f"?portalId={ACCOUNT_ID}" if ACCOUNT_ID else ""
+    r = requests.post(f"{BASE}/localdevauth/v1/auth/refresh{q}",
+                      json={"encodedOAuthRefreshToken": PAK}, timeout=60)
+    if r.status_code != 200:
+        sys.exit(f"Personal access key exchange failed: {r.status_code} {r.text[:300]}")
+    j = r.json()
+    groups = j.get("scopeGroups") or []
+    if groups and not any("hubdb" in g for g in groups):
+        print("WARNING: the personal access key has no HubDB scope - regenerate it with HubDB and Files ticked")
+    _pak_expires = j.get("expiresAtMillis", 0) / 1000 or time.time() + 1500
+    H["Authorization"] = f"Bearer {j['oauthAccessToken']}"
 
 
 def call(method, path, **kw):
     r = None
+    extra = kw.pop("headers", {})
     for a in range(5):
-        r = requests.request(method, BASE + path, headers={**H, **kw.pop("headers", {})}, timeout=120, **kw)
+        if not TOKEN and PAK and time.time() > _pak_expires - 120:
+            pak_token()
+        r = requests.request(method, BASE + path, headers={**H, **extra}, timeout=120, **kw)
+        if r.status_code == 401 and not TOKEN and PAK:
+            pak_token()
+            continue
+        if r.status_code == 403 and "scope" in r.text.lower():
+            sys.exit(f"Missing scope for {method} {path}: {r.text[:300]}")
         if r.status_code == 429 or r.status_code >= 500:
             time.sleep(int(r.headers.get("Retry-After", 2 ** a)))
             continue
@@ -346,8 +375,8 @@ def run_local(paths):
 
 
 def run_hubspot():
-    if not TOKEN:
-        sys.exit("Set HUBSPOT_PRICEBOOK_TOKEN")
+    if not TOKEN and not PAK:
+        sys.exit("Set HUBSPOT_PERSONAL_ACCESS_KEY (or HUBSPOT_PRICEBOOK_TOKEN)")
     print("=" * 70)
     print("DRY RUN - nothing will be written" if DRY_RUN else "LIVE RUN - price books WILL be published")
     print("=" * 70)
