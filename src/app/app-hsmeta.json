@@ -2,7 +2,7 @@
   "uid": "troo_sales_tools",
   "type": "app",
   "config": {
-    "description": "Troo sales tools: supplier revenue calculator (and, next, the fixed price comparison). Reads the supplier stipulations from HubDB.",
+    "description": "Troo sales tools: supplier revenue calculator and matrix prices (from supplier price books). Reads the supplier stipulations and price books from HubDB.",
     "name": "Troo Sales Tools",
     "distribution": "private",
     "auth": {
@@ -12,7 +12,9 @@
         "crm.objects.deals.read",
         "crm.objects.deals.write",
         "crm.objects.custom.read",
-        "hubdb.tables.read", "hubdb.rows.read"
+        "hubdb.tables.read",
+        "hubdb.rows.read",
+        "files"
       ],
       "optionalScopes": [],
       "conditionallyRequiredScopes": []

@@ -1,0 +1,8 @@
+{
+  "uid": "matrix_price",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/matrixPrice.js",
+    "secretKeys": []
+  }
+}
