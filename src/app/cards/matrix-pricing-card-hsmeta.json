@@ -1,0 +1,12 @@
+{
+  "uid": "matrix_pricing_card",
+  "type": "card",
+  "config": {
+    "name": "Matrix prices",
+    "location": "crm.record.tab",
+    "entrypoint": "/app/cards/MatrixCard.tsx",
+    "objectTypes": [
+      "deals"
+    ]
+  }
+}
