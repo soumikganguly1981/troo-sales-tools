@@ -3,7 +3,7 @@ name: CI and deploy
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, sandbox]
   workflow_dispatch:
 
 jobs:
@@ -23,9 +23,11 @@ jobs:
             (cd "$d" && npm install --no-audit --no-fund && npx tsc --noEmit -p .)
           done
 
+  # main deploys to the live account (profile prod), sandbox to the sandbox (profile sandbox).
+  # Each account has its own GitHub environment holding that account's personal access key.
   deploy:
     needs: test
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: HUBSPOT_PERSONAL_ACCESS_KEY
     env:
@@ -44,6 +46,31 @@ jobs:
           fi
       - run: npm install -g @hubspot/cli@latest
       - name: Validate
-        run: hs project validate --use-env
-      - name: Upload and deploy
-        run: hs project upload --use-env --json --forceCreate
+        run: hs project validate --use-env --profile prod
+      - name: Upload and deploy to live
+        run: hs project upload --use-env --profile prod --json --force
+
+  deploy-sandbox:
+    needs: test
+    if: github.ref == 'refs/heads/sandbox' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: HUBSPOT_SANDBOX
+    env:
+      HUBSPOT_ACCOUNT_ID: ${{ vars.HUBSPOT_ACCOUNT_ID }}
+      HUBSPOT_PERSONAL_ACCESS_KEY: ${{ secrets.HUBSPOT_PERSONAL_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the sandbox key is set
+        run: |
+          if [ -z "$HUBSPOT_PERSONAL_ACCESS_KEY" ] || [ "$HUBSPOT_ACCOUNT_ID" != "149841037" ]; then
+            echo "::error::Add the sandbox HUBSPOT_PERSONAL_ACCESS_KEY secret and HUBSPOT_ACCOUNT_ID=149841037 variable to the HUBSPOT_SANDBOX environment"
+            exit 1
+          fi
+      - run: npm install -g @hubspot/cli@latest
+      - name: Validate
+        run: hs project validate --use-env --profile sandbox
+      - name: Upload and deploy to the sandbox
+        run: hs project upload --use-env --profile sandbox --json --force

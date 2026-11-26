@@ -1,0 +1,33 @@
+name: Meter Capture setup
+
+# Adds the properties, the supplier_code_map HubDB table and the supplier dropdown options Meter
+# Capture needs (scripts/setup-meter-capture.mjs). Safe to re-run; it only adds what's missing.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Account to set up"
+        type: choice
+        options: [sandbox, live]
+        default: sandbox
+      dry_run:
+        description: "Dry run: show what would change without changing anything"
+        type: boolean
+        default: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.target == 'live' && 'HUBSPOT_PERSONAL_ACCESS_KEY' || 'HUBSPOT_SANDBOX' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up Meter Capture
+        run: node scripts/setup-meter-capture.mjs
+        env:
+          HUBSPOT_PERSONAL_ACCESS_KEY: ${{ secrets.HUBSPOT_PERSONAL_ACCESS_KEY }}
+          HUBSPOT_ACCOUNT_ID: ${{ vars.HUBSPOT_ACCOUNT_ID }}
+          DRY_RUN: ${{ inputs.dry_run }}
