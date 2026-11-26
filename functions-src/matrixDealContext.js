@@ -3,11 +3,11 @@
 // The deal's meters with what the matrix engine needs (region, profile class, rate type, usage,
 // band, start date), what's missing for each, and which suppliers have live price books.
 const { api, ok, fail } = require('./lib/http');
+const { objectTypes } = require('./lib/crm'); // Meter type ID differs between the sandbox and live
 const { meterFromProps } = require('./lib/matrix');
 const { summary } = require('./lib/pricebooks');
 const { FAMILY } = require('./lib/families');
 
-const METER = '2-112673604';
 const PROPS = ['utility', 'meter_number', 'bottom_line_meter_number__unique_identifier_', 'top_line_meter_number', 'meter_type', 'aq',
   'consumption__kwh_', 'latest_end_date', 'kva', 'mc_current_supplier', 'current_contract_supplier',
   'mp_band', 'mp_day_share_pct', 'mp_hh_voltage', 'mp_metering', 'mp_gas_ldz', 'mp_gas_exit_zone'];
@@ -15,6 +15,7 @@ const addDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d
 
 exports.main = async (context) => {
   try {
+    const METER = (await objectTypes()).meters;
     const dealId = String((context.parameters && context.parameters.dealId) || '');
     if (!/^\d+$/.test(dealId)) return fail(400, 'Missing deal ID');
     const deal = await api('GET', `/crm/v3/objects/deals/${dealId}?properties=dealname,ced_group_date`);

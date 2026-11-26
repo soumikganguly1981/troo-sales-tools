@@ -3,8 +3,8 @@
 // Prefills the calculator from the deal: fuel and AQ from associated Meters, start date from the CED,
 // current supplier from the Meter's current contract supplier.
 const { api, ok, fail } = require('./lib/http');
+const { objectTypes } = require('./lib/crm'); // Meter type ID differs between the sandbox and live
 
-const METER = '2-112673604';
 const ELEC = new Set(['HH', 'NHH', 'Half Hourly Electric', 'Non Half Hourly Electric']);
 const HH = new Set(['HH', 'Half Hourly Electric']);
 const GROUPS = [
@@ -24,6 +24,7 @@ const addDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d
 
 exports.main = async (context) => {
   try {
+    const METER = (await objectTypes()).meters;
     const dealId = String((context.parameters && context.parameters.dealId) || '');
     if (!/^\d+$/.test(dealId)) return fail(400, 'Missing deal ID');
 
