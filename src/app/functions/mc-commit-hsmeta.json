@@ -1,0 +1,8 @@
+{
+  "uid": "mc_commit",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/mcCommit.js",
+    "secretKeys": []
+  }
+}

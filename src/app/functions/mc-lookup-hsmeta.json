@@ -1,0 +1,8 @@
+{
+  "uid": "mc_lookup",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/mcLookup.js",
+    "secretKeys": []
+  }
+}

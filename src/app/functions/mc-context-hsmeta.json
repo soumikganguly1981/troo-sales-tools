@@ -1,0 +1,8 @@
+{
+  "uid": "mc_context",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/mcContext.js",
+    "secretKeys": []
+  }
+}

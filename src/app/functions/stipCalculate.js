@@ -92,7 +92,7 @@ var require_hubdb = __commonJS({
       cache = { at: Date.now(), tables };
       return tables;
     }
-    module2.exports = { loadStipulations: loadStipulations2, normaliseRow };
+    module2.exports = { loadStipulations: loadStipulations2, normaliseRow, readTable };
   }
 });
 

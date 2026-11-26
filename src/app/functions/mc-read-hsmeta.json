@@ -1,0 +1,8 @@
+{
+  "uid": "mc_read",
+  "type": "app-function",
+  "config": {
+    "entrypoint": "/app/functions/mcRead.js",
+    "secretKeys": []
+  }
+}
