@@ -1,0 +1,7 @@
+{
+  "accountId": 26661912,
+  "variables": {
+    "ENV": "prod",
+    "MC_FUTURE_STAGE": "auto"
+  }
+}
