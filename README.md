@@ -54,3 +54,29 @@ npm test         # engine + function tests against the bundles (no HubSpot neede
 Pushing to `main` runs the tests, then validates and uploads the project to HubSpot through GitHub Actions. It needs, in the `hubspot-production` environment: secret `HUBSPOT_PERSONAL_ACCESS_KEY` and variable `HUBSPOT_ACCOUNT_ID` (26661912). The environment is named `HUBSPOT_PERSONAL_ACCESS_KEY`.
 
 Never commit `hubspot.config.yml`: it holds a personal access key.
+
+## Meter Capture (deal tab)
+
+Run at LOA Signed: bills (PDF/photo) and/or the Excel meter list in; Sites, Meters and deals out. No Contract records.
+Steps: Upload > Read > Look up > Review & confirm > Add to HubSpot.
+
+- Functions: `mc_context`, `mc_read` (one file per call: Excel read directly, bills read by Haiku then re-checked by Sonnet),
+  `mc_lookup` (meters already in HubSpot, Electralink/Xoserve), `mc_commit` (`preview: true` shows the split without writing).
+- Rules in `functions-src/lib/meters.js`: MPAN check digit, Excel template parsing, grouping (electricity with a CED inside
+  12 months stays; gas goes to a gas deal; later CEDs go to Future Opportunity deals by fuel and year; unticked meters are
+  saved to the company only), Site matching by postcode and address.
+- Nothing is hard-coded to one account: object types, pipelines and stages are looked up by name.
+
+### Environments
+
+| Branch | Deploys to | GitHub environment | Profile |
+|---|---|---|---|
+| `main` | Live (26661912) | `HUBSPOT_PERSONAL_ACCESS_KEY` | `src/hsprofile.prod.json` |
+| `sandbox` | Sandbox (149841037) | `HUBSPOT_SANDBOX` | `src/hsprofile.sandbox.json` |
+
+Each environment holds that account's `HUBSPOT_PERSONAL_ACCESS_KEY` secret and `HUBSPOT_ACCOUNT_ID` variable.
+Run the **Meter Capture setup** workflow (dry run first) to add the properties and the `supplier_code_map` HubDB table.
+
+### Switching on later
+- Bill reading: add the app secret `ANTHROPIC_API_KEY`, then add it to `secretKeys` in `mc-read-hsmeta.json` and `mc-context-hsmeta.json`.
+- Electralink / Xoserve: implement `functions-src/lib/registry.js` once the API docs are in; credentials go in app secrets.
