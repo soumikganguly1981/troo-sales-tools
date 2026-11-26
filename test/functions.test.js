@@ -42,6 +42,7 @@ test('stip_calculate rejects a missing fuel', async () => {
 });
 
 test('stip_deal_context prefills from meters and CED', async () => {
+  routes['GET /crm/v3/schemas'] = () => [200, { results: [{ name: 'meters', objectTypeId: '2-112673604' }, { name: 'sites', objectTypeId: '2-112673583' }] }];
   routes['GET /crm/v3/objects/deals/123'] = () => [200, { id: '123', properties: { dealname: 'Acme', ced_group_date: '2030-01-31', current_supplier: '' } }];
   routes['GET /crm/v4/objects/deals/123/associations/2-112673604'] = () => [200, { results: [{ toObjectId: 1 }, { toObjectId: 2 }, { toObjectId: 3 }] }];
   routes['POST /crm/v3/objects/2-112673604/batch/read'] = (b) => [207, { results: b.inputs.map(({ id }) => ({ id, properties: {

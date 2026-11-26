@@ -5,6 +5,7 @@ const stips = require('./fixtures/stips-2026-11.json');
 
 process.env.PRIVATE_APP_ACCESS_TOKEN = 'test-token';
 const routes = {};
+routes['GET /crm/v3/schemas'] = () => [200, { results: [{ name: 'meters', objectTypeId: '2-112673604' }, { name: 'sites', objectTypeId: '2-112673583' }] }];
 global.fetch = async (url, opts = {}) => {
   const u = new URL(url);
   const key = u.host === 'files.example' ? `FILE ${u.pathname}` : `${opts.method || 'GET'} ${u.pathname}`;
