@@ -69,6 +69,10 @@ jobs:
             echo "::error::Add the sandbox HUBSPOT_PERSONAL_ACCESS_KEY secret and HUBSPOT_ACCOUNT_ID=149841037 variable to the HUBSPOT_SANDBOX environment"
             exit 1
           fi
+      - name: Meter Capture setup (adds missing properties and the supplier table; safe to repeat)
+        run: node scripts/setup-meter-capture.mjs
+        env:
+          DRY_RUN: "false"
       - run: npm install -g @hubspot/cli@latest
       - name: Validate
         run: hs project validate --use-env --profile sandbox
