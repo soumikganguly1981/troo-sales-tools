@@ -48,4 +48,4 @@ async function loadStipulations() {
   return tables;
 }
 
-module.exports = { loadStipulations, normaliseRow };
+module.exports = { loadStipulations, normaliseRow, readTable };
