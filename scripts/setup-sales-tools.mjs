@@ -204,7 +204,7 @@ async function supplierList() {
     let after = null;
     do {
       const r = await call('GET', `/cms/v3/hubdb/tables/${TABLE}/rows/draft?limit=1000${after ? `&after=${after}` : ''}`);
-      rows.push(...(r.body.results || []).map((x) => x.values));
+      rows.push(...(r.body.results || []).map((x) => ({ ...x.values, _id: x.id })));
       after = r.body.paging?.next?.after || null;
     } while (after);
     console.log(`  ${TABLE}: exists, ${rows.length} rows`);
@@ -212,7 +212,7 @@ async function supplierList() {
 
   const known = new Set(rows.map((r) => String(r.name || '').toLowerCase()));
   const add = seed.filter((r) => r.name && !known.has(r.name.toLowerCase()));
-  const inputs = add.map((r) => ({ values: { ...r, trades_with: r.trades_with === 'true' } }));
+  const inputs = add.map((r) => ({ values: { ...r, trades_with: r.trades_with === 'true' ? 1 : 0 } })); // HubDB BOOLEAN takes 1/0
   for (let i = 0; i < inputs.length; i += 100) {
     await write(`add ${inputs.slice(i, i + 100).length} supplier(s) from suppliers.csv`, 'POST', `/cms/v3/hubdb/tables/${TABLE}/rows/draft/batch/create`, { inputs: inputs.slice(i, i + 100) });
   }
@@ -227,8 +227,15 @@ async function supplierList() {
   if (rows.length) console.log(`  "Troo trades with" values in HubDB: ${JSON.stringify(seen)}`);
   let tradesWith = [...new Set(all.filter((r) => truthy(r.trades_with)).map((r) => r.name))].sort();
   if (!tradesWith.length) {
+    // Nothing ticked at all can only be the first seeding (an early version sent true/false, which HubDB
+    // stored as 0), so tick the suppliers marked in suppliers.csv. Once anything is ticked, HubDB wins.
+    const want = new Set(seed.filter((r) => r.trades_with === 'true').map((r) => r.name.toLowerCase()));
+    const fix = rows.filter((r) => r._id && want.has(String(r.name).toLowerCase())).map((r) => ({ id: String(r._id), values: { trades_with: 1 } }));
+    if (fix.length) {
+      await write(`tick "Troo trades with" on ${fix.length} supplier(s) from suppliers.csv`, 'POST', `/cms/v3/hubdb/tables/${TABLE}/rows/draft/batch/update`, { inputs: fix });
+      await write(`publish ${TABLE}`, 'POST', `/cms/v3/hubdb/tables/${TABLE}/draft/publish`);
+    }
     tradesWith = seed.filter((r) => r.trades_with === 'true').map((r) => r.name).sort();
-    console.log(`  WARNING: no supplier is ticked "Troo trades with" in HubDB; using the ${tradesWith.length} in suppliers.csv. Tick them in HubDB so the table stays the master.`);
   }
   return { names: [...new Set(all.map((r) => r.name))].sort(), tradesWith };
 }
