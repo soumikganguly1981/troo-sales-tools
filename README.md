@@ -79,7 +79,13 @@ The sandbox deploy runs `scripts/setup-sales-tools.mjs` first (for live, run the
 
 ### Switching on later
 - Bill reading: add the app secret `ANTHROPIC_API_KEY`, then add it to `secretKeys` in `mc-read-hsmeta.json` and `mc-context-hsmeta.json`.
-- Electralink / Xoserve: implement `functions-src/lib/registry.js` once the API docs are in; credentials go in app secrets.
+- Electralink / Xoserve: built in `functions-src/lib/registry.js` (Electralink `/v1/eac` with the NHH key pair; Xoserve
+  token then `/query/v1/switch`). Switched on per app by adding these app secrets, then listing them in `secretKeys` of
+  `mc-lookup-hsmeta.json` and `mc-context-hsmeta.json`: `ELECTRALINK_NHH_KEY`, `ELECTRALINK_NHH_PASSWORD`,
+  `XOSERVE_CLIENT_ID`, `XOSERVE_CLIENT_SECRET`, `XOSERVE_SCOPE`, `XOSERVE_TOKEN_URL`, `XOSERVE_API_KEY`.
+  The registry wins for supplier, address, postcode and consumption. If the registry postcode differs from the bill's,
+  the meter number may be misread: the rep must tick "I've checked the meter number" before saving
+  (Meter `mcap_lookup_result` records the outcome). Lookups run 8 at a time, 25 meters per call.
 
 ## The single supplier list
 
