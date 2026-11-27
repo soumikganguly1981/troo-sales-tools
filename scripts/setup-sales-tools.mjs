@@ -38,6 +38,7 @@ async function call(method, path, body) {
 const write = async (what, method, path, body) => {
   if (DRY) { console.log(`  would ${what}`); return { status: 200, body: {} }; }
   const r = await call(method, path, body);
+  if (r.status === 403) throw new Error(`${what} failed: the personal access key is missing a permission (${(r.body.message || '').slice(0, 200)}). Regenerate the key with that permission ticked, update the GitHub secret and re-run.`);
   if (r.status >= 300) throw new Error(`${what} failed: ${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
   console.log(`  ${what}: done`);
   return r;
@@ -53,6 +54,7 @@ const GROUPS = {
   mcap: { name: 'meter_capture', label: 'Meter Capture', displayOrder: -1 },
   req: { name: 'customer_requirements', label: 'Customer requirements', displayOrder: -1 },
   ao: { name: 'accepted_option', label: 'Accepted option', displayOrder: -1 },
+  mp: { name: 'matrix_pricing', label: 'Matrix pricing', displayOrder: -1 },
 };
 const PROFILES = ['00', '01', '02', '03', '04', '05', '06', '07', '08'];
 const METER_PROPS = [
@@ -72,6 +74,18 @@ const METER_PROPS = [
     description: 'What this meter still needs before it can be priced (set by Meter Capture). Empty when complete.' },
   { g: 'mcap', name: 'mp_profile_class', label: 'Profile class', type: 'enumeration', fieldType: 'select', options: opts(PROFILES),
     description: 'Electricity profile class (00 = half hourly). From the MPAN top line, or entered in Meter Capture when only the profile is known.' },
+];
+// Meter fields Pricing reads, as defined in the live account (created only where missing, e.g. a sandbox made before they were added)
+const PRICING_METER_PROPS = [
+  { g: 'mp', name: 'mp_gas_ldz', label: 'Gas zone (LDZ)', type: 'string', fieldType: 'text', description: 'Gas local distribution zone (EA, EM, NE ...). Pricing needs it for gas.' },
+  { g: 'mp', name: 'mp_gas_exit_zone', label: 'Gas exit zone', type: 'string', fieldType: 'text', description: 'Gas exit zone, for suppliers that price by exit zone.' },
+  { g: 'mp', name: 'mp_day_share_pct', label: 'Day usage share (%)', type: 'number', fieldType: 'number', description: 'Share of usage on the day rate, for day/night meters.' },
+  { g: 'mp', name: 'mp_band', label: 'Network charging band', type: 'enumeration', fieldType: 'select', options: opts(['1', '2', '3', '4']), description: 'Electricity network charging band.' },
+  { g: 'mp', name: 'mp_hh_voltage', label: 'HH voltage type', type: 'enumeration', fieldType: 'select', options: opts(['Low voltage', 'LV substation', 'LV network non-CT', 'High voltage']), description: 'Half-hourly connection voltage.' },
+  { g: 'mp', name: 'mp_metering', label: 'Metering (whole current / CT)', type: 'enumeration', fieldType: 'select', options: opts(['Whole current', 'CT']), description: 'Half-hourly metering type.' },
+  { g: 'mp', name: 'kva', label: 'kVA', type: 'number', fieldType: 'number', description: 'Agreed supply capacity (half-hourly).' },
+  { g: 'mp', name: 'top_line_meter_number', label: 'Top Line Meter Number', type: 'string', fieldType: 'text', description: 'MPAN top line: profile class, meter time switch code, line loss factor.' },
+  { g: 'mp', name: 'latest_end_date', label: 'Latest End Date', type: 'date', fieldType: 'date', description: 'Latest contract end date, including extensions.' },
 ];
 const DEAL_PROPS = [
   // Meter Capture
@@ -219,8 +233,9 @@ async function main() {
 
   console.log('\nMeter properties');
   await ensureGroup(meter.objectTypeId, GROUPS.mcap);
-  const meterHave = await ensureProps(meter.objectTypeId, METER_PROPS);
-  for (const n of ['meter_number', 'bottom_line_meter_number__unique_identifier_', 'contract_end_date', 'consumption__kwh_', 'utility', 'postcode', 'rates_unitdaynight_pence_per_kwh', 'rates_standing_charge__pday', 'mp_gas_ldz', 'mp_hh_voltage', 'kva']) {
+  await ensureGroup(meter.objectTypeId, GROUPS.mp);
+  const meterHave = await ensureProps(meter.objectTypeId, [...METER_PROPS, ...PRICING_METER_PROPS]);
+  for (const n of ['meter_number', 'bottom_line_meter_number__unique_identifier_', 'contract_end_date', 'consumption__kwh_', 'utility', 'postcode', 'rates_unitdaynight_pence_per_kwh', 'rates_standing_charge__pday', 'meter_type', 'aq']) {
     if (!meterHave.has(n)) console.log(`  WARNING: existing Meter property ${n} is missing in this account; the apps skip it`);
   }
   if (!meterHave.has('mc_current_supplier')) {
@@ -230,7 +245,7 @@ async function main() {
   }
 
   console.log('\nDeal properties');
-  for (const g of Object.values(GROUPS)) await ensureGroup('deals', g);
+  for (const g of [GROUPS.mcap, GROUPS.req, GROUPS.ao]) await ensureGroup('deals', g);
   const dealHave = await ensureProps('deals', DEAL_PROPS.map((p) => (p.name === 'ao_supplier' ? { ...p, options: opts(suppliers.tradesWith) } : p)));
   await ensureProps('deals', DEAL_CALCS, { softly: true });
   if (dealHave.has('tier')) {
