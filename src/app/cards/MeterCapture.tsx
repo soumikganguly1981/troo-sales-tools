@@ -18,6 +18,7 @@ type Meter = {
   annualKwh?: number | null; rates?: Rates | null; source: string; billSupplier?: string | null; billSupplierMatch?: string | null;
   toCheck?: string[]; included?: boolean; supplier?: string | null; overrideReason?: string;
   registrySupplier?: string | null; registryCode?: string | null; registrySince?: string | null; registryNote?: string;
+  registryCheck?: string | null; registryAddress?: string | null; registryPostcode?: string | null; mismatchChecked?: boolean; uprn?: string | null; meterSerial?: string | null;
   existingId?: string | null; existingSupplier?: string | null; files?: string[];
   profileClass?: string | null; meterType?: string | null; ldz?: string | null; kva?: number | null; voltage?: string | null;
 };
@@ -65,7 +66,9 @@ function pricingGaps(m: Meter): string[] {
   }
   return out;
 }
-const ready = (m: Meter) => m.included === false || (m.valid && !!m.fuel && !!m.supplier && (!reasonNeeded(m) || (m.overrideReason || '').trim().length > 3));
+const mismatch = (m: Meter) => m.registryCheck === 'mismatch';
+const ready = (m: Meter) => m.included === false || (m.valid && !!m.fuel && !!m.supplier && (!reasonNeeded(m) || (m.overrideReason || '').trim().length > 3)
+  && (!mismatch(m) || !!m.mismatchChecked));
 
 // a bill and the Excel list can both carry the same meter: keep the bill's details, fill gaps from the other
 function mergeMeters(list: Meter[]): Meter[] {
@@ -162,21 +165,34 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
   const lookUp = async (ms: Meter[]) => {
     setStep(2); setBusy('Checking each meter'); setProgress(0);
     try {
-      const r = unwrap<{ error?: string; results?: { number: string; existing: { id: string; supplier: string | null; ced: string | null; postcode: string | null;
+      type Found = { number: string; existing: { id: string; supplier: string | null; ced: string | null; postcode: string | null;
           profile: string | null; meterType: string | null; annualKwh: number | null; ldz: string | null; kva: number | null; voltage: string | null } | null;
-        registry: { status: string; supplierName?: string | null; supplierCode?: string; supplierSince?: string; address?: string; postcode?: string; annualKwh?: number; message?: string } }[] }>(
-        await hubspot.serverless('mc_lookup', { parameters: { dealId, meters: ms.filter((m) => m.valid).map((m) => ({ number: m.number, fuel: m.fuel })) } }));
-      if (r.error) throw new Error(r.error);
-      const by = new Map((r.results || []).map((x) => [x.number, x]));
+        registry: { status: string; source?: string; supplierName?: string | null; registryName?: string | null; supplierCode?: string; supplierSince?: string; address?: string;
+          postcode?: string; postcodeCheck?: string; annualKwh?: number; profile?: string | null; ldz?: string | null; uprn?: string | null; meterSerial?: string | null; message?: string } };
+      const todo = ms.filter((m) => m.valid).map((m) => ({ number: m.number, fuel: m.fuel, postcode: m.postcode || null }));
+      const found: Found[] = [];
+      for (let k = 0; k < todo.length; k += 25) { // 25 per call keeps each call well under HubSpot's 15 s limit
+        const r = unwrap<{ error?: string; results?: Found[] }>(await hubspot.serverless('mc_lookup', { parameters: { dealId, meters: todo.slice(k, k + 25) } }));
+        if (r.error) throw new Error(r.error);
+        found.push(...(r.results || []));
+        setProgress(Math.round(((k + 25) / Math.max(todo.length, 1)) * 100));
+      }
+      const by = new Map(found.map((x) => [x.number, x]));
       const next = ms.map((m) => {
         const x = by.get(m.number);
         if (!x) return m;
         const reg = x.registry;
         const out: Meter = { ...m, existingId: x.existing?.id || null, existingSupplier: x.existing?.supplier || null };
         if (reg.status === 'ok') {
+          // registry wins for supplier, address, postcode and consumption; the bill's values stay in the draft for reference
           Object.assign(out, { registrySupplier: reg.supplierName || null, registryCode: reg.supplierCode || null, registrySince: reg.supplierSince || null,
-            address: reg.address || m.address, postcode: reg.postcode || m.postcode, annualKwh: m.annualKwh ?? reg.annualKwh ?? null });
-          if (reg.supplierCode && !reg.supplierName) out.registryNote = `Registry code ${reg.supplierCode} isn't in Troo's supplier table yet`;
+            registryCheck: reg.postcodeCheck || null, registryAddress: reg.address || null, registryPostcode: reg.postcode || null,
+            address: reg.address || m.address, postcode: reg.postcode || m.postcode, annualKwh: reg.annualKwh ?? m.annualKwh ?? null,
+            uprn: reg.uprn || null, meterSerial: reg.meterSerial || null, mismatchChecked: false });
+          if (reg.ldz && !m.ldz) out.ldz = reg.ldz;
+          if (reg.profile && !m.profile && !m.profileClass) out.profileClass = reg.profile;
+          if (reg.supplierCode && !reg.supplierName) out.registryNote = `Registry code ${reg.supplierCode}${reg.registryName ? ` (${reg.registryName})` : ''} isn't in Troo's supplier list yet`;
+          if (reg.postcodeCheck === 'mismatch') { out.address = m.address || reg.address; out.postcode = m.postcode || reg.postcode; }
         } else if (reg.status === 'not_found') out.registryNote = `${m.fuel === 'Gas' ? 'Xoserve' : 'Electralink'} has no record of this meter number`;
         else if (reg.status === 'error') out.registryNote = `Registry lookup failed: ${reg.message}`;
         if (!out.supplier) out.supplier = out.registrySupplier || m.billSupplierMatch || x.existing?.supplier || null;
@@ -355,6 +371,13 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
                   <Text variant="microcopy">On the bill: {m.billSupplier || 'no bill'}{m.existingSupplier ? ` · In HubSpot: ${m.existingSupplier}` : ''}</Text>
                   <Text variant="microcopy">On the registry: {m.registrySupplier ? `${m.registrySupplier}${m.registrySince ? ` since ${uk(m.registrySince)}` : ''}` : m.registryNote || 'not checked'}</Text>
                   {m.registrySupplier && m.billSupplierMatch && m.registrySupplier !== m.billSupplierMatch ? <Tag variant="warning">Bill and registry differ: possible recent switch</Tag> : null}
+                  {mismatch(m) ? (
+                    <Flex direction="column" gap="xs">
+                      <Tag variant="error">Registry address is somewhere else: {m.registryAddress || ''} {m.registryPostcode || ''}</Tag>
+                      <Text variant="microcopy">The meter number may be misread. Check it against the bill before saving.</Text>
+                      <Checkbox name={`mm${i}`} checked={!!m.mismatchChecked} onChange={(v: boolean) => update(i, { mismatchChecked: v })}>I've checked the meter number is right</Checkbox>
+                    </Flex>
+                  ) : m.registryCheck === 'match' ? <Tag variant="success">Registry address matches</Tag> : null}
                 </Flex>
                 <Flex direction="column" gap="xs">
                   <Select name={`sup${i}`} label="Current supplier to save" required value={m.supplier || ''} options={supplierOptions}
@@ -382,7 +405,7 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
             </Box>
           )))}
           <Flex direction="row" gap="sm" justify="end" align="center">
-            {!allReady ? <Text variant="microcopy">Every ticked meter needs a valid number and a supplier (and a reason if it differs from the registry).</Text>
+            {!allReady ? <Text variant="microcopy">Every ticked meter needs a valid number and a supplier (and a reason if it differs from the registry, and a check where the registry address is elsewhere).</Text>
               : included.some((m) => pricingGaps(m).length) ? <Text variant="microcopy">{included.filter((m) => pricingGaps(m).length).length} meter(s) still need data for pricing. You can add them now and fill the gaps later.</Text> : null}
             <Button onClick={() => setStep(0)}>Back</Button>
             <Button variant="primary" disabled={!allReady || !included.length && !meters.length} onClick={toPreview}>Continue</Button>
