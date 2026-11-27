@@ -18,7 +18,7 @@ type Meter = {
   annualKwh?: number | null; rates?: Rates | null; source: string; billSupplier?: string | null; billSupplierMatch?: string | null;
   toCheck?: string[]; included?: boolean; supplier?: string | null; overrideReason?: string;
   registrySupplier?: string | null; registryCode?: string | null; registrySince?: string | null; registryNote?: string;
-  registryCheck?: string | null; registryAddress?: string | null; registryPostcode?: string | null; mismatchChecked?: boolean; uprn?: string | null; meterSerial?: string | null;
+  registryCheck?: string | null; companyCheck?: string | null; knownPostcodes?: string[]; otherCompanies?: string[]; registryAddress?: string | null; registryPostcode?: string | null; mismatchChecked?: boolean; uprn?: string | null; meterSerial?: string | null;
   existingId?: string | null; existingSupplier?: string | null; files?: string[];
   profileClass?: string | null; meterType?: string | null; ldz?: string | null; kva?: number | null; voltage?: string | null;
 };
@@ -66,9 +66,17 @@ function pricingGaps(m: Meter): string[] {
   }
   return out;
 }
-const mismatch = (m: Meter) => m.registryCheck === 'mismatch';
+// Same rule as ownerCheckNeeded in functions-src/lib/meters.js (the server refuses to save without it)
+const ownerCheck = (m: Meter) => {
+  if (m.included === false) return false;
+  if (m.otherCompanies?.length) return true;
+  if (!m.registryAddress && !m.registryPostcode) return false;
+  if (m.registryCheck === 'mismatch') return true;
+  if (m.registryCheck === 'match' || m.registryCheck === 'same area') return false;
+  return m.companyCheck !== 'match';
+};
 const ready = (m: Meter) => m.included === false || (m.valid && !!m.fuel && !!m.supplier && (!reasonNeeded(m) || (m.overrideReason || '').trim().length > 3)
-  && (!mismatch(m) || !!m.mismatchChecked));
+  && (!ownerCheck(m) || !!m.mismatchChecked));
 
 // a bill and the Excel list can both carry the same meter: keep the bill's details, fill gaps from the other
 function mergeMeters(list: Meter[]): Meter[] {
@@ -166,9 +174,9 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
     setStep(2); setBusy('Checking each meter'); setProgress(0);
     try {
       type Found = { number: string; existing: { id: string; supplier: string | null; ced: string | null; postcode: string | null;
-          profile: string | null; meterType: string | null; annualKwh: number | null; ldz: string | null; kva: number | null; voltage: string | null } | null;
+          profile: string | null; meterType: string | null; annualKwh: number | null; ldz: string | null; kva: number | null; voltage: string | null; otherCompanies?: string[] } | null;
         registry: { status: string; source?: string; supplierName?: string | null; registryName?: string | null; supplierCode?: string; supplierSince?: string; address?: string;
-          postcode?: string; postcodeCheck?: string; annualKwh?: number; profile?: string | null; ldz?: string | null; uprn?: string | null; meterSerial?: string | null; message?: string } };
+          postcode?: string; postcodeCheck?: string; companyCheck?: string; knownPostcodes?: string[]; annualKwh?: number; profile?: string | null; ldz?: string | null; uprn?: string | null; meterSerial?: string | null; message?: string } };
       const todo = ms.filter((m) => m.valid).map((m) => ({ number: m.number, fuel: m.fuel, postcode: m.postcode || null }));
       const found: Found[] = [];
       for (let k = 0; k < todo.length; k += 25) { // 25 per call keeps each call well under HubSpot's 15 s limit
@@ -182,13 +190,13 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
         const x = by.get(m.number);
         if (!x) return m;
         const reg = x.registry;
-        const out: Meter = { ...m, existingId: x.existing?.id || null, existingSupplier: x.existing?.supplier || null };
+        const out: Meter = { ...m, existingId: x.existing?.id || null, existingSupplier: x.existing?.supplier || null, otherCompanies: x.existing?.otherCompanies || [], mismatchChecked: false };
         if (reg.status === 'ok') {
           // registry wins for supplier, address, postcode and consumption; the bill's values stay in the draft for reference
           Object.assign(out, { registrySupplier: reg.supplierName || null, registryCode: reg.supplierCode || null, registrySince: reg.supplierSince || null,
-            registryCheck: reg.postcodeCheck || null, registryAddress: reg.address || null, registryPostcode: reg.postcode || null,
+            registryCheck: reg.postcodeCheck || null, companyCheck: reg.companyCheck || null, knownPostcodes: reg.knownPostcodes || [], registryAddress: reg.address || null, registryPostcode: reg.postcode || null,
             address: reg.address || m.address, postcode: reg.postcode || m.postcode, annualKwh: reg.annualKwh ?? m.annualKwh ?? null,
-            uprn: reg.uprn || null, meterSerial: reg.meterSerial || null, mismatchChecked: false });
+            uprn: reg.uprn || null, meterSerial: reg.meterSerial || null });
           if (reg.ldz && !m.ldz) out.ldz = reg.ldz;
           if (reg.profile && !m.profile && !m.profileClass) out.profileClass = reg.profile;
           if (reg.supplierCode && !reg.supplierName) out.registryNote = `Registry code ${reg.supplierCode}${reg.registryName ? ` (${reg.registryName})` : ''} isn't in Troo's supplier list yet`;
@@ -371,13 +379,16 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
                   <Text variant="microcopy">On the bill: {m.billSupplier || 'no bill'}{m.existingSupplier ? ` · In HubSpot: ${m.existingSupplier}` : ''}</Text>
                   <Text variant="microcopy">On the registry: {m.registrySupplier ? `${m.registrySupplier}${m.registrySince ? ` since ${uk(m.registrySince)}` : ''}` : m.registryNote || 'not checked'}</Text>
                   {m.registrySupplier && m.billSupplierMatch && m.registrySupplier !== m.billSupplierMatch ? <Tag variant="warning">Bill and registry differ: possible recent switch</Tag> : null}
-                  {mismatch(m) ? (
+                  {m.registryAddress || m.registryPostcode ? <Text variant="microcopy">Registry address: {[m.registryAddress, m.registryPostcode].filter(Boolean).join(', ')}</Text> : null}
+                  {ownerCheck(m) ? (
                     <Flex direction="column" gap="xs">
-                      <Tag variant="error">Registry address is somewhere else: {m.registryAddress || ''} {m.registryPostcode || ''}</Tag>
-                      <Text variant="microcopy">The meter number may be misread. Check it against the bill before saving.</Text>
-                      <Checkbox name={`mm${i}`} checked={!!m.mismatchChecked} onChange={(v: boolean) => update(i, { mismatchChecked: v })}>I've checked the meter number is right</Checkbox>
+                      {m.otherCompanies?.length ? <Tag variant="error">Already in HubSpot under {m.otherCompanies.join(', ')}</Tag> : null}
+                      {m.registryCheck === 'mismatch' ? <Tag variant="error">Registry address isn't the bill's address</Tag>
+                        : m.registryAddress || m.registryPostcode ? <Tag variant="error">{m.companyCheck === 'unknown' ? `${ctx.company?.name || 'This company'} has no address to compare with` : `Not at any address on ${ctx.company?.name || 'this company'}${m.knownPostcodes?.length ? ` (${m.knownPostcodes.join(', ')})` : ''}`}</Tag> : null}
+                      <Text variant="microcopy">Check the meter number and that this supply is on the customer's LOA. If it isn't theirs, untick the meter.</Text>
+                      <Checkbox name={`mm${i}`} checked={!!m.mismatchChecked} onChange={(v: boolean) => update(i, { mismatchChecked: v })}>This meter belongs to {ctx.company?.name || 'this customer'}</Checkbox>
                     </Flex>
-                  ) : m.registryCheck === 'match' ? <Tag variant="success">Registry address matches</Tag> : null}
+                  ) : m.registryCheck === 'match' || m.companyCheck === 'match' ? <Tag variant="success">Registry address matches the customer</Tag> : null}
                 </Flex>
                 <Flex direction="column" gap="xs">
                   <Select name={`sup${i}`} label="Current supplier to save" required value={m.supplier || ''} options={supplierOptions}
@@ -405,7 +416,7 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
             </Box>
           )))}
           <Flex direction="row" gap="sm" justify="end" align="center">
-            {!allReady ? <Text variant="microcopy">Every ticked meter needs a valid number and a supplier (and a reason if it differs from the registry, and a check where the registry address is elsewhere).</Text>
+            {!allReady ? <Text variant="microcopy">Every ticked meter needs a valid number and a supplier (and a reason if it differs from the registry, and a tick where the meter's address or company doesn't match the customer).</Text>
               : included.some((m) => pricingGaps(m).length) ? <Text variant="microcopy">{included.filter((m) => pricingGaps(m).length).length} meter(s) still need data for pricing. You can add them now and fill the gaps later.</Text> : null}
             <Button onClick={() => setStep(0)}>Back</Button>
             <Button variant="primary" disabled={!allReady || !included.length && !meters.length} onClick={toPreview}>Continue</Button>
