@@ -10,7 +10,7 @@
 //  - Unticked meters are saved to the company and Site but left off every deal.
 const { api, ok, fail } = require('./lib/http');
 const crm = require('./lib/crm');
-const { groupMeters, matchSite, siteKey, formatPostcode, ratesText, missingForPricing, meterTypeOf, isHH } = require('./lib/meters');
+const { groupMeters, matchSite, siteKey, formatPostcode, ratesText, missingForPricing, meterTypeOf, isHH, ownerCheckNeeded } = require('./lib/meters');
 
 const MAX = 150;
 const SKIP_COPY = /^(hs_|mcap_|num_|days_to_close|dealname$|pipeline$|dealstage$|amount$|amount_in_home_currency$|closedate$|createdate$|ced_group_date$|mp_quote_shortlist$|contract_loss_applied$)/;
@@ -26,9 +26,14 @@ const only = (props, allowed, dropped) => Object.fromEntries(Object.entries(prop
   if (allowed.has(k)) return true; dropped.add(k); return false;
 }));
 
-const LOOKUP = { match: 'Matched', 'same area': 'Same area', mismatch: 'Postcode mismatch, checked by rep', missing: 'Matched, no postcode to compare' };
-const lookupResult = (m) => (m.registryCheck ? LOOKUP[m.registryCheck] || null
-  : /no record/.test(m.registryNote || '') ? 'Not found' : 'Not checked');
+const lookupResult = (m) => {
+  if (!m.registryAddress && !m.registryPostcode) return /no record/.test(m.registryNote || '') ? 'Not found' : 'Not checked';
+  if (m.registryCheck === 'match') return 'Matched';
+  if (m.registryCheck === 'same area') return 'Same area';
+  if (m.registryCheck === 'mismatch') return 'Postcode mismatch, checked by rep';
+  if (m.companyCheck === 'match') return "Matched a company address";
+  return 'Address not confirmed by registry, checked by rep';
+};
 
 function meterProps(m, ctx) {
   const r = m.rates || {};
@@ -80,8 +85,8 @@ exports.main = async (context) => {
     if (bad.length) return fail(400, `Fix or untick these meter numbers first: ${bad.map((m) => m.number).join(', ')}`);
     const noReason = all.filter((m) => m.included !== false && m.registrySupplier && m.supplier !== m.registrySupplier && String(m.overrideReason || '').trim().length < 4);
     if (noReason.length) return fail(400, `Give a reason for changing the registry supplier on ${noReason.map((m) => m.number).join(', ')}`);
-    const unchecked = all.filter((m) => m.included !== false && m.registryCheck === 'mismatch' && !m.mismatchChecked);
-    if (unchecked.length) return fail(400, `The registry has a different address for ${unchecked.map((m) => m.number).join(', ')}: check the meter number first`);
+    const unchecked = all.filter((m) => ownerCheckNeeded(m) && !m.mismatchChecked);
+    if (unchecked.length) return fail(400, `Confirm ${unchecked.map((m) => m.number).join(', ')} belongs to this customer first: the registry address or the meter's current company doesn't match`);
 
     const today = /^\d{4}-\d{2}-\d{2}$/.test(p.today || '') ? p.today : londonToday();
     const by = String(p.by || '').slice(0, 100);

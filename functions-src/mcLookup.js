@@ -3,7 +3,8 @@
 // For each meter: is it already in HubSpot (it will be linked, not duplicated), and what does the
 // registry say (Electralink for electricity, Xoserve for gas; supplier code turned into Troo's name).
 const { ok, fail } = require('./lib/http');
-const { objectTypes, searchIn } = require('./lib/crm');
+const { api } = require('./lib/http');
+const { objectTypes, searchIn, associatedIds, batchRead } = require('./lib/crm');
 const { supplierMap } = require('./lib/suppliers');
 const { lookup } = require('./lib/registry');
 const { postcodeCheck } = require('./lib/meters');
@@ -40,6 +41,27 @@ exports.main = async (context) => {
       }
     }
     const { byCode } = await supplierMap();
+
+    // The customer's own addresses: company postcode and its Sites. The registry address is checked against these.
+    const dealId = /^\d+$/.test(String(p.dealId || '')) ? String(p.dealId) : null;
+    const companyIds = dealId ? await associatedIds('deals', dealId, 'companies') : [];
+    const companyId = companyIds[0] || null;
+    const known = [];
+    if (companyId) {
+      const c = await api('GET', `/crm/v3/objects/companies/${companyId}?properties=zip,name`);
+      if (c.body?.properties?.zip) known.push(c.body.properties.zip);
+      const siteIds = await associatedIds('companies', companyId, types.sites);
+      for (const s of await batchRead(types.sites, siteIds, ['postal_code'])) if (s.properties.postal_code) known.push(s.properties.postal_code);
+    }
+    // Meters already in HubSpot under another company: never moved silently
+    const existingIds = [...new Set(found.map((f) => f.id))];
+    const owners = new Map();
+    for (let i = 0; i < existingIds.length; i += 100) {
+      const r = await api('POST', `/crm/v4/associations/${types.meters}/companies/batch/read`, { inputs: existingIds.slice(i, i + 100).map((id) => ({ id })) });
+      for (const row of r.body?.results || []) owners.set(String(row.from?.id), (row.to || []).map((t) => String(t.toObjectId)));
+    }
+    const otherIds = [...new Set([...owners.values()].flat().filter((id) => id !== String(companyId)))];
+    const names = new Map((await batchRead('companies', otherIds, ['name'])).map((c) => [String(c.id), c.properties.name || `Company ${c.id}`]));
     const regs = await mapLimit(meters, PARALLEL, (m) => lookup(m));
     const results = [];
     for (const [i, m] of meters.entries()) {
@@ -50,7 +72,11 @@ exports.main = async (context) => {
         reg.registryName = reg.supplierName || null;
         reg.supplierName = reg.supplierCode ? byCode[String(reg.supplierCode).toUpperCase()]?.name || null : null;
         reg.postcodeCheck = postcodeCheck(reg.postcode, m.postcode || existing?.properties.postcode);
+        reg.companyCheck = !known.length ? 'unknown'
+          : known.some((k) => ['match', 'same area'].includes(postcodeCheck(reg.postcode, k))) ? 'match' : 'elsewhere';
+        reg.knownPostcodes = [...new Set(known.map((k) => String(k).toUpperCase()))].slice(0, 5);
       }
+      const otherCompanies = existing ? (owners.get(String(existing.id)) || []).filter((id) => id !== String(companyId)).map((id) => names.get(id) || `Company ${id}`) : [];
       results.push({
         number: String(m.number),
         existing: existing ? { id: existing.id, supplier: existing.properties.mc_current_supplier || existing.properties.current_supplier || null,
@@ -58,7 +84,8 @@ exports.main = async (context) => {
           // pricing data already on the meter, used to fill gaps
           profile: (String(existing.properties.top_line_meter_number || '').replace(/\D/g, '').slice(0, 2)) || existing.properties.mp_profile_class || null,
           meterType: existing.properties.meter_type || null, annualKwh: Number(existing.properties.aq) || Number(existing.properties.consumption__kwh_) || null,
-          ldz: existing.properties.mp_gas_ldz || null, kva: Number(existing.properties.kva) || null, voltage: existing.properties.mp_hh_voltage || null } : null,
+          ldz: existing.properties.mp_gas_ldz || null, kva: Number(existing.properties.kva) || null, voltage: existing.properties.mp_hh_voltage || null,
+          otherCompanies } : null,
         registry: reg,
       });
     }
