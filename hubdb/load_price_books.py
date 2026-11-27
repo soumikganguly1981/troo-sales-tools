@@ -33,14 +33,41 @@ TABLE = "price_books"
 FOLDERS = {"incoming": "/Price books/Incoming", "live": "/Price books/Live",
            "processed": "/Price books/Processed", "failed": "/Price books/Failed"}
 
-# Supplier code in the file name (UD_<broker>_<CODE>_<fuel>_<ACQ|REN>_<ddmmyy>) -> canonical supplier name
-# (names as in the HubDB supplier map). Add a line when a new supplier starts sending files.
-SUPPLIER_CODES = {
-    "YU": "Yu Energy", "BG": "British Gas", "BGL": "BG Lite", "CORONA": "Corona Energy", "COR": "Corona Energy",
-    "EDF": "EDF Energy", "TOTAL": "TotalEnergies", "TGP": "TotalEnergies", "VALDA": "Valda Energy",
-    "SMARTEST": "Smartest Energy Business", "SEB": "Smartest Energy Business", "CROWN": "Crown Gas & Power",
-    "DRAX": "Drax", "ENGIE": "Engie", "NPOWER": "Npower", "SHELL": "Shell Energy", "SEFE": "SEFE Energy",
-}
+# Supplier code in the file name (UD_<broker>_<CODE>_<fuel>_<ACQ|REN>_<ddmmyy>) -> supplier name.
+# Read from Troo's single supplier list: the HubDB table supplier_code_map ("pricebook_codes" column),
+# or hubdb/suppliers.csv in this repo when HubDB can't be read. Add a new supplier's file code there.
+SUPPLIER_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "suppliers.csv")
+SUPPLIER_CODES = {}
+
+
+def _codes_from(rows):
+    out = {}
+    for r in rows:
+        for c in re.split(r"[;,]", str(r.get("pricebook_codes") or "")):
+            if c.strip() and r.get("name"):
+                out[c.strip().upper()] = str(r["name"]).strip()
+    return out
+
+
+def load_supplier_codes(from_hubdb=True):
+    """Fill SUPPLIER_CODES from HubDB (the master list), falling back to suppliers.csv."""
+    import csv
+    codes = {}
+    if from_hubdb:
+        try:
+            r = call("GET", "/cms/v3/hubdb/tables/supplier_code_map/rows", params={"limit": 1000})
+            if r is not None and r.status_code == 200:
+                codes = _codes_from([x.get("values", {}) for x in r.json().get("results", [])])
+        except Exception as e:  # HubDB unreachable: use the copy in the repo
+            print(f"Supplier list: HubDB not readable ({e}); using suppliers.csv")
+    source = "HubDB supplier_code_map"
+    if not codes:
+        with open(SUPPLIER_CSV, newline="", encoding="utf-8") as fh:
+            codes = _codes_from(list(csv.DictReader(fh)))
+        source = "hubdb/suppliers.csv"
+    SUPPLIER_CODES.clear()
+    SUPPLIER_CODES.update(codes)
+    print(f"Supplier list: {len(codes)} price-book file codes from {source}")
 
 # Book columns, in the order written to each JSON book (all-empty columns are dropped per book)
 COLS = ["product", "rate_type", "profile", "band", "voltage", "exit_zone", "aq_min", "aq_max", "term",
@@ -62,8 +89,10 @@ def parse_name(name):
     if len(parts) < 4 or parts[0].upper() != "UD":
         raise ValueError(f"File name '{name}' doesn't follow UD_<broker>_<supplier>_<fuel>_<ACQ|REN>_<ddmmyy>")
     code = parts[2].upper()
+    if not SUPPLIER_CODES:
+        load_supplier_codes(from_hubdb=False)
     if code not in SUPPLIER_CODES:
-        raise ValueError(f"Unknown supplier code '{code}' in '{name}'. Add it to SUPPLIER_CODES in load_price_books.py")
+        raise ValueError(f"Unknown supplier code '{code}' in '{name}'. Add it to the supplier's pricebook_codes in the supplier list (HubDB supplier_code_map)")
     ctype = next((p.upper() for p in parts[3:] if p.upper() in ("ACQ", "REN")), "ANY")
     return SUPPLIER_CODES[code], ctype
 
@@ -381,6 +410,7 @@ def run_hubspot():
     print("DRY RUN - nothing will be written" if DRY_RUN else "LIVE RUN - price books WILL be published")
     print("=" * 70)
     today = dt.date.today().isoformat()
+    load_supplier_codes()
     ids = {k: folder_id(v, create=not DRY_RUN) for k, v in FOLDERS.items()}
     if not ids["incoming"]:
         print(f"No folder {FOLDERS['incoming']} yet - nothing to load")
