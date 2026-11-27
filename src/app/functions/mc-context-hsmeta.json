@@ -10,7 +10,8 @@
       "XOSERVE_CLIENT_SECRET",
       "XOSERVE_SCOPE",
       "XOSERVE_TOKEN_URL",
-      "XOSERVE_API_KEY"
+      "XOSERVE_API_KEY",
+      "ANTHROPIC_API_KEY"
     ]
   }
 }

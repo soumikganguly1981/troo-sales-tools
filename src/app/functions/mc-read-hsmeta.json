@@ -3,6 +3,8 @@
   "type": "app-function",
   "config": {
     "entrypoint": "/app/functions/mcRead.js",
-    "secretKeys": []
+    "secretKeys": [
+      "ANTHROPIC_API_KEY"
+    ]
   }
 }
