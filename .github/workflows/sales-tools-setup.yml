@@ -1,0 +1,33 @@
+name: Sales tools setup
+
+# Adds the single supplier list (HubDB supplier_code_map), the supplier dropdowns, and the Meter Capture,
+# customer requirements and accepted option properties (scripts/setup-sales-tools.mjs). Safe to re-run.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Account to set up"
+        type: choice
+        options: [sandbox, live]
+        default: sandbox
+      dry_run:
+        description: "Dry run: show what would change without changing anything"
+        type: boolean
+        default: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.target == 'live' && 'HUBSPOT_PERSONAL_ACCESS_KEY' || 'HUBSPOT_SANDBOX' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up the supplier list and properties
+        run: node scripts/setup-sales-tools.mjs
+        env:
+          HUBSPOT_PERSONAL_ACCESS_KEY: ${{ secrets.HUBSPOT_PERSONAL_ACCESS_KEY }}
+          HUBSPOT_ACCOUNT_ID: ${{ vars.HUBSPOT_ACCOUNT_ID }}
+          DRY_RUN: ${{ inputs.dry_run }}
