@@ -33607,6 +33607,7 @@ var require_billreader = __commonJS({
     var TIMEOUT_MS = 13e3;
     var MEDIA = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
     var configured = () => !!process.env.ANTHROPIC_API_KEY;
+    var SYSTEM = "You read UK business gas and electricity bills for an energy broker. Extract only what is printed. Never guess: use null when a value is not on the bill. Digits only for MPAN, MPRN and account numbers. Dates as YYYY-MM-DD. Rates in pence. If a date is printed without a day (e.g. 'March 2027'), use the last day of that month and list it in unclear. One meters[] entry per supply point. MPAN: read the 'S' supply number box. The top line is 8 digits; the bottom line is the 13-digit core, starting with a 2-digit distributor ID. Copy every digit exactly. RATES: if the bill shows more than one rate period (for example a price change part-way through), report ONLY the rates for the LATEST period and give that period's start date in rates_from. Unit rates are energy unit rates only (Day, Night, Single, etc.). Never include levies, CCL, pass-through or non-commodity charges as unit rates. If consumption for the period is zero and no unit rate is printed, leave the unit rates null.";
     var RATES = {
       type: "object",
       properties: {
@@ -33672,6 +33673,16 @@ var require_billreader = __commonJS({
         required: ["meters"]
       }
     };
+    var refusesForced = /* @__PURE__ */ new Set();
+    function fromText(content) {
+      const txt = (content || []).map((c) => c.text || "").join("");
+      const m = txt.match(/\{[\s\S]*\}/);
+      try {
+        return m ? JSON.parse(m[0]) : null;
+      } catch {
+        return null;
+      }
+    }
     async function call(model, file, prompt, tool) {
       const media = MEDIA[file.extension];
       if (!media) throw new Error(`Bills must be PDF or a photo (JPG, PNG, WEBP); ${file.name} is .${file.extension}`);
@@ -33679,25 +33690,34 @@ var require_billreader = __commonJS({
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
       const started = Date.now();
+      const send = (forced) => fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal: ctl.signal,
+        headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2e3,
+          system: SYSTEM,
+          tools: [tool],
+          tool_choice: forced ? { type: "tool", name: tool.name } : { type: "auto" },
+          messages: [{ role: "user", content: [block, { type: "text", text: forced ? prompt : `${prompt} Answer by calling ${tool.name}.` }] }]
+        })
+      });
       try {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          signal: ctl.signal,
-          headers: { "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-          body: JSON.stringify({
-            model,
-            max_tokens: 2e3,
-            temperature: 0,
-            tools: [tool],
-            tool_choice: { type: "tool", name: tool.name },
-            messages: [{ role: "user", content: [block, { type: "text", text: prompt }] }]
-          })
-        });
-        const body = await res.json().catch(() => ({}));
+        let forced = !refusesForced.has(model);
+        let res = await send(forced);
+        let body = await res.json().catch(() => ({}));
+        if (res.status === 400 && forced && /tool_choice/i.test(body.error?.message || "")) {
+          refusesForced.add(model);
+          forced = false;
+          res = await send(false);
+          body = await res.json().catch(() => ({}));
+        }
         if (!res.ok) throw new Error(`Bill reading failed (${res.status}): ${body.error?.message || ""}`);
         const used = (body.content || []).find((c) => c.type === "tool_use");
-        if (!used) throw new Error("The bill reader returned no result");
-        return { result: used.input, seconds: Math.round((Date.now() - started) / 100) / 10, model };
+        const result = used ? used.input : fromText(body.content);
+        if (!result) throw new Error("The bill reader returned no result");
+        return { result, seconds: Math.round((Date.now() - started) / 100) / 10, model };
       } catch (e) {
         if (e.name === "AbortError") throw new Error("Reading the bill took too long. Try a smaller file or a clearer photo.");
         throw e;
@@ -33705,9 +33725,8 @@ var require_billreader = __commonJS({
         clearTimeout(timer);
       }
     }
-    var READ_PROMPT = `This is a UK business energy bill (or a photo of one). Record every meter (MPAN for electricity, MPRN for gas) on it.
-Use the latest rates shown if they changed during the bill period, and give the date they apply from.
-For the contract end date, copy the wording exactly into contract_end_text. If no date is printed, leave it null; never guess.
+    var READ_PROMPT = `Extract this bill: every meter (MPAN for electricity, MPRN for gas).
+For the contract end date, copy the wording exactly into contract_end_text. If no date is printed, leave it null.
 Units: pence per kWh and pence per day (convert \xA3 to pence). List anything hard to read in "unclear".`;
     var readBill = (file) => call(READ_MODEL(), file, READ_PROMPT, READ_TOOL);
     function checkBill(file, first) {
@@ -33715,8 +33734,9 @@ Units: pence per kWh and pence per day (convert \xA3 to pence). List anything ha
       const prompt = `Another reader extracted these meters from this bill:
 ${summary}
 
-Check each one against the bill: the meter number digit by digit, the latest unit rates and standing charge (pence), and the contract end date.
-Report the values as printed on the bill. Set matches_first_read to false when any of these differ.`;
+Re-read ONLY these fields for each supply point: the MPAN bottom-line core (13 digits) or the MPRN, the LATEST period's
+standing charge and energy unit rates (pence), and the contract end date. Copy every digit exactly.
+Report the values as printed. Set matches_first_read to false when any of these differ.`;
       return call(CHECK_MODEL(), file, prompt, CHECK_TOOL);
     }
     module2.exports = { configured, readBill, checkBill, MEDIA };
