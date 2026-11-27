@@ -174,3 +174,46 @@ test('mc_commit writes Sites, Meters, split deals and links', async () => {
   assert.deepEqual(sent(`POST /crm/v4/associations/deals/${METER}/batch/archive`)[0].body.inputs, [{ from: { id: '10' }, to: [{ id: '501' }] }]);
   assert.match(sent('POST /crm/v3/objects/notes')[0].body.properties.hs_note_body, /No Contract records/);
 });
+
+test('lookup: registry address checked against the customer; meter owned elsewhere is flagged', async () => {
+  const env = { ELECTRALINK_NHH_KEY: 'k', ELECTRALINK_NHH_PASSWORD: 'p' };
+  Object.assign(process.env, env);
+  const saved = { ...routes };
+  routes['GET /crm/v3/objects/companies/20'] = () => [200, { properties: { name: 'Riverside Bakery Ltd', zip: 'LS11 5AB' } }];
+  routes[`POST /crm/v4/associations/${METER}/companies/batch/read`] = () => [200, { results: [{ from: { id: '501' }, to: [{ toObjectId: 77 }] }] }];
+  routes['POST /crm/v3/objects/companies/batch/read'] = () => [200, { results: [{ id: '77', properties: { name: 'Other Farm Ltd' } }] }];
+  const where = { '1411333991005': 'B98 9HE', '1100011559224': 'BD1 1LA', '1055566677785': 'LS11 5AB' };
+  routes['GET /v1/eac'] = (b, u) => [200, { post_code: where[u.searchParams.get('mpan')], supplier_id: 'KENS', metering_point_address_line_1: 'X' }];
+  try {
+    const { main } = require('../src/app/functions/mcLookup');
+    const r = await main({ parameters: { dealId: '10', meters: [
+      { number: '1411333991005', fuel: 'Electricity' },            // Corona site, nothing to do with this customer
+      { number: '1100011559224', fuel: 'Electricity' },            // at the company's Bradford Site
+      { number: '1055566677785', fuel: 'Electricity' },            // at the company postcode, but owned by another company
+    ] } });
+    const by = Object.fromEntries(r.body.results.map((x) => [x.number, x]));
+    assert.equal(by['1411333991005'].registry.companyCheck, 'elsewhere');
+    assert.equal(by['1100011559224'].registry.companyCheck, 'match');
+    assert.equal(by['1055566677785'].registry.companyCheck, 'match');
+    assert.deepEqual(by['1055566677785'].existing.otherCompanies, ['Other Farm Ltd']);
+    const { ownerCheckNeeded } = require('../functions-src/lib/meters');
+    const asMeter = (x) => ({ registryPostcode: x.registry.postcode, registryCheck: x.registry.postcodeCheck, companyCheck: x.registry.companyCheck, otherCompanies: x.existing?.otherCompanies || [] });
+    assert.equal(ownerCheckNeeded(asMeter(by['1411333991005'])), true);
+    assert.equal(ownerCheckNeeded(asMeter(by['1100011559224'])), false);
+    assert.equal(ownerCheckNeeded(asMeter(by['1055566677785'])), true);
+    assert.equal(ownerCheckNeeded({ registryPostcode: 'B98 9HE', registryCheck: 'match' }), false, 'bill postcode matching the registry is enough');
+    assert.equal(ownerCheckNeeded({ number: '1', companyCheck: null }), false, 'no registry: the rep typed the address');
+  } finally {
+    for (const k of Object.keys(env)) delete process.env[k];
+    for (const k of Object.keys(routes)) if (!(k in saved)) delete routes[k];
+    Object.assign(routes, saved);
+  }
+});
+
+test('commit refuses a meter that needs the ownership tick', async () => {
+  const { main } = require('../src/app/functions/mcCommit');
+  const r = await main({ parameters: { dealId: '10', meters: [{ number: '1411333991005', fuel: 'Electricity', valid: true, supplier: 'EDF Energy', ced: '2027-03-31',
+    registryPostcode: 'B98 9HE', registryCheck: 'missing', companyCheck: 'elsewhere' }] } });
+  assert.equal(r.statusCode, 400);
+  assert.match(r.body.message || r.body.error || JSON.stringify(r.body), /belongs to this customer/);
+});
