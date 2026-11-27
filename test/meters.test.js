@@ -142,3 +142,17 @@ test('data completeness: what each meter still needs for pricing', () => {
   assert.deepEqual(m.missingForPricing({ ...base, included: false }), []);
   assert.equal(m.meterTypeOf({ rates: { unit: 24 } }), 'Standard');
 });
+
+test('a misjoined MPAN is recovered only when one 13-digit run passes the check digit', () => {
+  const { parseMeterNumber, mergeCheck } = require('../functions-src/lib/meters');
+  const r = parseMeterNumber('15700002575420', 'Elec'); // Robert Lee Reed: a stray digit on the end
+  assert.equal(r.valid, true);
+  assert.equal(r.number, '1570000257542');
+  assert.equal(parseMeterNumber('12345678901234', 'Elec').valid, false);
+  // first read wrong, second reader right: its number is taken and flagged for the rep
+  const [m] = mergeCheck([{ fuel: 'Elec', number: '1570000257549', valid: false, problem: 'MPAN check digit does not match' }],
+    { meters: [{ supply_number: '1570000257542', matches_first_read: false }] });
+  assert.equal(m.number, '1570000257542');
+  assert.equal(m.valid, true);
+  assert.ok(m.toCheck.includes('meter number'));
+});
