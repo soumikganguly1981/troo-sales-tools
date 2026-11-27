@@ -15,7 +15,8 @@ type Meter = {
   start: string | null; current: string | null; notes: string[];
 };
 type Book = { fuel: string; supplier: string; quoteBy: string | null };
-type Ctx = { dealName: string; meters: Meter[]; books: Book[]; stipulated?: string[]; booksError: string | null; notes: string[]; error?: string };
+type Requirements = { lengths: number[]; startDate: string | null; changeOfTenancy: boolean };
+type Ctx = { dealName: string; meters: Meter[]; books: Book[]; stipulated?: string[]; booksError: string | null; notes: string[]; requirements?: Requirements; error?: string };
 type Option = {
   supplier: string; products: string[]; term: number; endDate: string | null; green: boolean;
   rates: { unit: number | null; day: number | null; night: number | null; ew: number | null };
@@ -65,6 +66,8 @@ const itemKey = (meterId: string, o: Option) => [meterId, o.supplier, o.products
 // "BLACK ORANGE INV LTD - RENEWALS" -> "BLACK ORANGE INV LTD"
 const companyFrom = (dealName: string) => dealName.split(' - ')[0].trim();
 
+// The RFQ playbook's start date wins over the one worked out from the CED (e.g. a change of tenancy).
+const withRequirements = (f: Form, r?: Requirements): Form => (r?.startDate ? { ...f, start: r.startDate } : f);
 const formFrom = (m: Meter | null, company: string): Form => ({
   meterId: m?.id || 'manual', site: '', meterNumber: m?.meterNumber || '', fuel: m?.fuel || 'E',
   region: m?.region || '', aq: m?.aq || null, company,
@@ -125,7 +128,8 @@ export const MatrixPricing = ({ dealId, userName, shortlistVersion = 0, onShortl
         const c = unwrap<Ctx>(await hubspot.serverless('matrix_deal_context', { parameters: { dealId } }));
         if (c.error) { setErr(c.error); return; }
         setCtx(c);
-        setForm(formFrom(c.meters[0] || null, companyFrom(c.dealName)));
+        setForm(withRequirements(formFrom(c.meters[0] || null, companyFrom(c.dealName)), c.requirements));
+        if (c.requirements?.lengths.length) setDurations(c.requirements.lengths.slice(0, MAX_DURATIONS));
       } catch (e) { setErr(`Couldn't read the deal: ${(e as Error).message}`); }
     })();
   }, [dealId]);
@@ -160,7 +164,7 @@ export const MatrixPricing = ({ dealId, userName, shortlistVersion = 0, onShortl
     const got = fromMpan(v);
     set({ meterNumber: v, ...(got.region && form.fuel !== 'G' ? { region: got.region } : {}), ...(got.profile ? { profile: got.profile } : {}) });
   };
-  const cancel = () => { setForm(formFrom(chosen, companyFrom(ctx?.dealName || ''))); setDurations([12, 24, 36]); setRes(null); setErr(null); setSaveMsg(null); };
+  const cancel = () => { setForm(withRequirements(formFrom(chosen, companyFrom(ctx?.dealName || '')), ctx?.requirements)); setDurations(ctx?.requirements?.lengths.length ? ctx.requirements.lengths.slice(0, MAX_DURATIONS) : [12, 24, 36]); setRes(null); setErr(null); setSaveMsg(null); };
 
   const generate = async () => {
     setBusy(true); setErr(null); setSaveMsg(null); setRes(null);
