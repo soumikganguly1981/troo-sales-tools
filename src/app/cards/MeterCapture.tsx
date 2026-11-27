@@ -4,7 +4,7 @@
 // preview here is exactly what Add to HubSpot writes.
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Checkbox, DateInput, Divider, EmptyState, FileUpload, Flex, Heading, Input, Link, LoadingSpinner,
+  Alert, Box, Button, Checkbox, DateInput, Divider, EmptyState, FileUpload, Flex, Heading, Input, Link, LoadingSpinner, NumberInput,
   ProgressBar, Select, StatisticsItem, Statistics, StepIndicator, Table, TableBody, TableCell, TableHead, TableHeader,
   TableRow, Tag, Text, hubspot,
 } from '@hubspot/ui-extensions';
@@ -19,6 +19,7 @@ type Meter = {
   toCheck?: string[]; included?: boolean; supplier?: string | null; overrideReason?: string;
   registrySupplier?: string | null; registryCode?: string | null; registrySince?: string | null; registryNote?: string;
   existingId?: string | null; existingSupplier?: string | null; files?: string[];
+  profileClass?: string | null; meterType?: string | null; ldz?: string | null; kva?: number | null; voltage?: string | null;
 };
 type UploadedFile = { id: number; name: string; extension: string; size: number };
 type Ctx = {
@@ -28,7 +29,7 @@ type Ctx = {
   draft: { meters?: Meter[]; files?: UploadedFile[]; savedAt?: string } | null; notes: string[]; error?: string;
 };
 type Group = { key: string; kind: 'this' | 'gas' | 'future'; label: string; meters: string[]; earliestCed: string | null; flags: string[];
-  dealName: string; exists: boolean; stage: string | null; dealId?: string; created?: boolean; stageNote?: string };
+  dealName: string; exists: boolean; stage: string | null; dealId?: string; created?: boolean; stageNote?: string; missing?: string[]; dataComplete?: boolean };
 type Preview = { groups: Group[]; sites: { new: number; matched: number; newList: { address: string; postcode: string }[] };
   meters: { new: number; existing: number; unticked: number }; warnings: string[]; error?: string };
 type Result = { deals: Group[]; sites: { created: number; matched: number }; meters: { created: number; updated: number; unticked: number }; warnings: string[]; error?: string };
@@ -44,6 +45,26 @@ const uk = (iso: string | null | undefined) => (iso ? iso.split('-').reverse().j
 const label = (m: Meter) => (m.fuel === 'Gas' ? 'MPRN' : 'MPAN');
 const kwh = (n: number | null | undefined) => (n ? `${Math.round(n).toLocaleString('en-GB')} kWh` : '');
 const reasonNeeded = (m: Meter) => !!m.registrySupplier && !!m.supplier && m.supplier !== m.registrySupplier;
+// Same rule as missingForPricing in functions-src/lib/meters.js (the server's check is the one saved)
+const LDZ = ['EA', 'EM', 'NE', 'NO', 'NT', 'NW', 'SC', 'SE', 'SO', 'SW', 'WM', 'WN', 'WS'].map((v) => ({ value: v, label: v }));
+const PROFILE_OPTS = ['00', '01', '02', '03', '04', '05', '06', '07', '08'].map((v) => ({ value: v, label: v === '00' ? '00 (half hourly)' : `Profile class ${v}` }));
+const METER_TYPES = ['Standard', 'Economy 7', 'Off Peak', 'Evening/Weekend', 'Evening/Weekend/Night'].map((v) => ({ value: v, label: v }));
+const VOLTAGES = ['Low voltage', 'LV substation', 'LV network non-CT', 'High voltage'].map((v) => ({ value: v, label: v }));
+const profileOf = (m: Meter) => m.profile || m.profileClass || null;
+const typeOf = (m: Meter) => m.meterType || (m.rates?.day != null && m.rates?.night != null ? 'Economy 7' : m.rates?.unit != null ? 'Standard' : null);
+function pricingGaps(m: Meter): string[] {
+  if (m.included === false) return [];
+  const out: string[] = [];
+  if (!m.ced) out.push('contract end date');
+  if (!(Number(m.annualKwh) > 0)) out.push('annual consumption');
+  if (m.fuel === 'Gas') { if (!m.ldz) out.push('gas zone (LDZ)'); }
+  else {
+    if (!profileOf(m)) out.push('profile class');
+    if (profileOf(m) === '00') { if (!(Number(m.kva) > 0)) out.push('kVA'); if (!m.voltage) out.push('HH voltage'); }
+    else if (!typeOf(m)) out.push('meter type');
+  }
+  return out;
+}
 const ready = (m: Meter) => m.included === false || (m.valid && !!m.fuel && !!m.supplier && (!reasonNeeded(m) || (m.overrideReason || '').trim().length > 3));
 
 // a bill and the Excel list can both carry the same meter: keep the bill's details, fill gaps from the other
@@ -108,6 +129,10 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
     const total = files.length || 1;
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
+      if (!ctx?.features.billReading && BILL_EXT.includes(f.extension.toLowerCase())) {
+        lines.push(`${f.name}: kept on the deal, not read (bill reading isn't switched on yet)`);
+        setLog([...lines]); setProgress(Math.round(((i + 1) / total) * 100)); continue;
+      }
       setBusy(`Reading ${f.name}`);
       try {
         const r = unwrap<{ error?: string; kind?: string; meters?: Meter[]; raw?: unknown; problems?: string[]; unclear?: string[]; log?: string }>(
@@ -137,7 +162,8 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
   const lookUp = async (ms: Meter[]) => {
     setStep(2); setBusy('Checking each meter'); setProgress(0);
     try {
-      const r = unwrap<{ error?: string; results?: { number: string; existing: { id: string; supplier: string | null; ced: string | null; postcode: string | null } | null;
+      const r = unwrap<{ error?: string; results?: { number: string; existing: { id: string; supplier: string | null; ced: string | null; postcode: string | null;
+          profile: string | null; meterType: string | null; annualKwh: number | null; ldz: string | null; kva: number | null; voltage: string | null } | null;
         registry: { status: string; supplierName?: string | null; supplierCode?: string; supplierSince?: string; address?: string; postcode?: string; annualKwh?: number; message?: string } }[] }>(
         await hubspot.serverless('mc_lookup', { parameters: { dealId, meters: ms.filter((m) => m.valid).map((m) => ({ number: m.number, fuel: m.fuel })) } }));
       if (r.error) throw new Error(r.error);
@@ -155,6 +181,16 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
         else if (reg.status === 'error') out.registryNote = `Registry lookup failed: ${reg.message}`;
         if (!out.supplier) out.supplier = out.registrySupplier || m.billSupplierMatch || x.existing?.supplier || null;
         if (!out.postcode && x.existing?.postcode) out.postcode = x.existing.postcode;
+        const ex = x.existing; // pricing data already on the meter in HubSpot fills what the bill or Excel didn't give
+        if (ex) {
+          if (!out.profile && !out.profileClass && ex.profile) out.profileClass = ex.profile;
+          if (!out.meterType && !out.rates && ex.meterType) out.meterType = ex.meterType;
+          if (!out.annualKwh && ex.annualKwh) out.annualKwh = ex.annualKwh;
+          if (!out.ldz && ex.ldz) out.ldz = ex.ldz;
+          if (!out.kva && ex.kva) out.kva = ex.kva;
+          if (!out.voltage && ex.voltage) out.voltage = ex.voltage;
+          if (!out.ced && ex.ced) out.ced = String(ex.ced).slice(0, 10);
+        }
         return out;
       });
       setMeters(next); setProgress(100);
@@ -234,7 +270,7 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
           <Text>Add bills (PDF or photo, up to 10) and/or the Excel meter list. They're stored on the deal as evidence.</Text>
           {!ctx.features.billReading ? <Alert title="Bill reading is not switched on yet" variant="warning">Use the Excel template or add meters by hand below. Bills you upload are still kept on the deal.</Alert> : null}
           <FileUpload fileLimit={10} attachToRecord={{ objectType: 'deals', objectId: Number(dealId) }}
-            allowedFileExtensions={ctx.features.billReading ? [...BILL_EXT, ...SHEET_EXT] : SHEET_EXT}
+            allowedFileExtensions={[...BILL_EXT, ...SHEET_EXT]}
             onChange={(fs) => setFiles(fs.map((f) => ({ id: f.id, name: f.name, extension: f.extension, size: f.size })))} />
           <Text variant="microcopy"><Text inline format={{ fontWeight: 'bold' }}>Excel template:</Text> three columns only: MPAN / MPRN, Fuel (Electricity or Gas), Contract end date (DD/MM/YYYY). Site, address and supplier come from the registry or the bill.</Text>
           <Divider />
@@ -295,7 +331,9 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
                     {!m.valid ? <Tag variant="error">Fix meter number</Tag>
                       : m.existingId ? <Tag variant="info">In HubSpot: will link</Tag>
                       : (m.toCheck || []).length ? <Tag variant="warning">Check {(m.toCheck || []).join(', ')}</Tag>
-                      : <Tag variant="success">OK</Tag>}
+                      : pricingGaps(m).length ? <Tag variant="warning">Needs {pricingGaps(m).join(', ')}</Tag>
+                      : <Tag variant="success">Ready to price</Tag>}
+                    {m.existingId && pricingGaps(m).length ? <Text variant="microcopy">Needs {pricingGaps(m).join(', ')}</Text> : null}
                   </TableCell>
                 </TableRow>
               ))}
@@ -327,12 +365,25 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
                   <Input name={`pc${i}`} label="Site postcode" value={m.postcode || ''} onChange={(v) => update(i, { postcode: v.toUpperCase() })} />
                   <Input name={`ad${i}`} label="Site address" value={m.address || ''} onChange={(v) => update(i, { address: v })} />
                 </Flex>
+                {pricingGaps(m).length ? (
+                  <Flex direction="column" gap="xs">
+                    <Text variant="microcopy" format={{ fontWeight: 'bold' }}>For pricing</Text>
+                    {!(Number(m.annualKwh) > 0) ? <NumberInput name={`kwh${i}`} label="Annual consumption (kWh)" min={0} value={m.annualKwh ?? undefined} onChange={(v: number) => update(i, { annualKwh: v })} /> : null}
+                    {m.fuel === 'Gas' && !m.ldz ? <Select name={`ldz${i}`} label="Gas zone (LDZ)" value={m.ldz || ''} options={LDZ} onChange={(v) => update(i, { ldz: String(v) })} /> : null}
+                    {m.fuel !== 'Gas' && !m.profile ? <Select name={`pc${i}x`} label="Profile class" value={m.profileClass || ''} options={PROFILE_OPTS} onChange={(v) => update(i, { profileClass: String(v) })} /> : null}
+                    {m.fuel !== 'Gas' && profileOf(m) && profileOf(m) !== '00' && !typeOf(m) ? <Select name={`mt${i}`} label="Meter type" value={m.meterType || ''} options={METER_TYPES} onChange={(v) => update(i, { meterType: String(v) })} /> : null}
+                    {profileOf(m) === '00' ? <NumberInput name={`kva${i}`} label="Capacity (kVA)" min={0} value={m.kva ?? undefined} onChange={(v: number) => update(i, { kva: v })} /> : null}
+                    {profileOf(m) === '00' ? <Select name={`hv${i}`} label="HH voltage" value={m.voltage || ''} options={VOLTAGES} onChange={(v) => update(i, { voltage: String(v) })} /> : null}
+                    <Text variant="microcopy">Leave blank if you don't know yet: the deal can't go to RFQ until it's filled in.</Text>
+                  </Flex>
+                ) : null}
               </Flex>
               <Divider />
             </Box>
           )))}
           <Flex direction="row" gap="sm" justify="end" align="center">
-            {!allReady ? <Text variant="microcopy">Every ticked meter needs a valid number and a supplier (and a reason if it differs from the registry).</Text> : null}
+            {!allReady ? <Text variant="microcopy">Every ticked meter needs a valid number and a supplier (and a reason if it differs from the registry).</Text>
+              : included.some((m) => pricingGaps(m).length) ? <Text variant="microcopy">{included.filter((m) => pricingGaps(m).length).length} meter(s) still need data for pricing. You can add them now and fill the gaps later.</Text> : null}
             <Button onClick={() => setStep(0)}>Back</Button>
             <Button variant="primary" disabled={!allReady || !included.length && !meters.length} onClick={toPreview}>Continue</Button>
           </Flex>
@@ -353,6 +404,8 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
                   </Flex>
                   <Text variant="microcopy">{g.dealName} · {g.meters.length} meter{g.meters.length === 1 ? '' : 's'}: {g.meters.join(', ')}{g.earliestCed ? ` · deal CED ${uk(g.earliestCed)}` : ''}</Text>
                   {g.flags.map((f) => <Text key={f} variant="microcopy">⚠ {f}</Text>)}
+                  {g.missing?.length ? <Text variant="microcopy">Data for pricing still needed (blocks RFQ): {g.missing.join('; ')}</Text>
+                    : <Text variant="microcopy">✓ Every meter has the data pricing needs</Text>}
                 </Box>
               ))}
               <Statistics>
@@ -379,6 +432,7 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
                   <Tag variant={d.kind === 'this' ? 'success' : 'info'}>{d.kind === 'this' ? 'This deal' : d.created ? 'New deal' : 'Split deal'}</Tag>
                   {d.kind === 'this' ? <Text>{d.label}: {d.meters.length} meter{d.meters.length === 1 ? '' : 's'}</Text>
                     : <Link href={{ url: recordUrl('0-3', String(d.dealId)), external: true }}>{d.label}: {d.meters.length} meter{d.meters.length === 1 ? '' : 's'}</Link>}
+                  <Tag variant={d.dataComplete ? 'success' : 'warning'}>{d.dataComplete ? 'Meter data complete' : 'Meter data missing'}</Tag>
                   {d.stageNote ? <Text variant="microcopy">{d.stageNote}</Text> : null}
                 </Flex>
               ))}
