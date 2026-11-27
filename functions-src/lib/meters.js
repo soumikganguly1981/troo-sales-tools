@@ -274,5 +274,15 @@ function missingForPricing(m) {
   return out;
 }
 
-module.exports = { missingForPricing, meterTypeOf, isHH, billMeters, mergeCheck, mpanCoreValid, parseMeterNumber, normaliseFuel, parseDate, parseMeterRows, addMonths, groupMeters,
+// Registry postcode vs the postcode on the bill or Excel. A wrong but check-digit-valid meter number
+// comes back from the registry at a different address, so 'mismatch' means: check the meter number.
+function postcodeCheck(registry, given) {
+  const a = normPostcode(registry), b = normPostcode(given);
+  if (!a || !b) return 'missing';
+  if (a === b) return 'match';
+  if (a.length > 3 && b.length > 3 && a.slice(0, -3) === b.slice(0, -3)) return 'same area';
+  return 'mismatch';
+}
+
+module.exports = { postcodeCheck, missingForPricing, meterTypeOf, isHH, billMeters, mergeCheck, mpanCoreValid, parseMeterNumber, normaliseFuel, parseDate, parseMeterRows, addMonths, groupMeters,
   normPostcode, formatPostcode, siteKey, matchSite, matchSupplier, ratesText };
