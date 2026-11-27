@@ -7,16 +7,19 @@
 //  - Meter Capture properties (Meter and Deal), including the data completeness fields
 //  - Deal "Customer requirements" (RFQ playbook) and "Accepted option" (Customer accepted playbook)
 //  - prints the Meter/Site object type IDs and the deal pipelines and stages
-// Env: HUBSPOT_PERSONAL_ACCESS_KEY, HUBSPOT_ACCOUNT_ID, DRY_RUN=true|false
+// Env: HUBSPOT_ACCOUNT_ID, DRY_RUN=true|false, and either HUBSPOT_SETUP_TOKEN (a private app / service key
+// token with write scopes, used when the personal access key can only read) or HUBSPOT_PERSONAL_ACCESS_KEY
 import { readFileSync } from 'node:fs';
 const BASE = 'https://api.hubapi.com';
 const PAK = process.env.HUBSPOT_PERSONAL_ACCESS_KEY;
+const SETUP_TOKEN = process.env.HUBSPOT_SETUP_TOKEN;
 const ACCOUNT = process.env.HUBSPOT_ACCOUNT_ID;
 const DRY = String(process.env.DRY_RUN || 'true') !== 'false';
-if (!PAK || !ACCOUNT) { console.error('Set HUBSPOT_PERSONAL_ACCESS_KEY and HUBSPOT_ACCOUNT_ID'); process.exit(1); }
+if ((!PAK && !SETUP_TOKEN) || !ACCOUNT) { console.error('Set HUBSPOT_ACCOUNT_ID and HUBSPOT_SETUP_TOKEN or HUBSPOT_PERSONAL_ACCESS_KEY'); process.exit(1); }
 
 let token = null;
 async function auth() {
+  if (SETUP_TOKEN) { token = SETUP_TOKEN; console.log(`Account ${ACCOUNT} (setup token)${DRY ? ' (DRY RUN: nothing will be changed)' : ''}`); return; }
   const r = await fetch(`${BASE}/localdevauth/v1/auth/refresh?portalId=${ACCOUNT}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ encodedOAuthRefreshToken: PAK }),
   });
@@ -38,7 +41,7 @@ async function call(method, path, body) {
 const write = async (what, method, path, body) => {
   if (DRY) { console.log(`  would ${what}`); return { status: 200, body: {} }; }
   const r = await call(method, path, body);
-  if (r.status === 403) throw new Error(`${what} failed: the personal access key is missing a permission (${(r.body.message || '').slice(0, 200)}). Regenerate the key with that permission ticked, update the GitHub secret and re-run.`);
+  if (r.status === 403) throw new Error(`${what} failed: the personal access key is missing a permission (${(r.body.message || '').slice(0, 200)}). Give the key that permission, or add a HUBSPOT_SETUP_TOKEN secret (private app token with write scopes) and re-run.`);
   if (r.status >= 300) throw new Error(`${what} failed: ${r.status} ${JSON.stringify(r.body).slice(0, 300)}`);
   console.log(`  ${what}: done`);
   return r;
