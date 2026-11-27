@@ -29,5 +29,6 @@ jobs:
         run: node scripts/setup-sales-tools.mjs
         env:
           HUBSPOT_PERSONAL_ACCESS_KEY: ${{ secrets.HUBSPOT_PERSONAL_ACCESS_KEY }}
+          HUBSPOT_SETUP_TOKEN: ${{ secrets.HUBSPOT_SETUP_TOKEN }}
           HUBSPOT_ACCOUNT_ID: ${{ vars.HUBSPOT_ACCOUNT_ID }}
           DRY_RUN: ${{ inputs.dry_run }}

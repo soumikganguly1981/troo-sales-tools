@@ -73,6 +73,7 @@ jobs:
         run: node scripts/setup-sales-tools.mjs
         env:
           DRY_RUN: "false"
+          HUBSPOT_SETUP_TOKEN: ${{ secrets.HUBSPOT_SETUP_TOKEN }}
       - run: npm install -g @hubspot/cli@latest
       - name: Validate
         run: hs project validate --use-env --profile sandbox
