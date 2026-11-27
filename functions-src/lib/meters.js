@@ -284,5 +284,17 @@ function postcodeCheck(registry, given) {
   return 'mismatch';
 }
 
-module.exports = { postcodeCheck, missingForPricing, meterTypeOf, isHH, billMeters, mergeCheck, mpanCoreValid, parseMeterNumber, normaliseFuel, parseDate, parseMeterRows, addMonths, groupMeters,
+// Does this meter need the rep to confirm it belongs to the deal's customer? Yes when the registry found it but
+// nothing ties its address to this customer (bill postcode, company postcode or one of the company's Sites),
+// or when the meter is already in HubSpot under a different company. Same rule in the card.
+function ownerCheckNeeded(m) {
+  if (!m || m.included === false) return false;
+  if (m.otherCompanies && m.otherCompanies.length) return true;
+  if (!m.registryAddress && !m.registryPostcode) return false; // registry not used: the rep typed the address
+  if (m.registryCheck === 'mismatch') return true;
+  if (m.registryCheck === 'match' || m.registryCheck === 'same area') return false;
+  return m.companyCheck !== 'match';
+}
+
+module.exports = { ownerCheckNeeded, postcodeCheck, missingForPricing, meterTypeOf, isHH, billMeters, mergeCheck, mpanCoreValid, parseMeterNumber, normaliseFuel, parseDate, parseMeterRows, addMonths, groupMeters,
   normPostcode, formatPostcode, siteKey, matchSite, matchSupplier, ratesText };
