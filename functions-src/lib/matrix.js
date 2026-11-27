@@ -182,7 +182,7 @@ function meterFromProps(id, p, fallbackStart) {
   const bottom = String(p.meter_number || p.bottom_line_meter_number__unique_identifier_ || '').replace(/\D/g, '');
   const top = String(p.top_line_meter_number || '').replace(/\D/g, '');
   const region = fuel === 'G' ? (p.mp_gas_ldz || '').toUpperCase() || null : bottom.length >= 2 ? bottom.slice(0, 2) : null;
-  const profile = fuel === 'E' && top.length >= 2 ? top.slice(0, 2) : null;
+  const profile = fuel === 'E' ? (top.length >= 2 ? top.slice(0, 2) : (p.mp_profile_class || null)) : null; // profile class entered in Meter Capture when the top line isn't known
   const rateType = fuel === 'HH' ? 'hh' : fuel === 'G' ? 'single' : RATE_TYPES[p.meter_type] || 'single';
   const aq = Number(p.aq) || Number(p.consumption__kwh_) || 0;
   const led = p.latest_end_date ? String(p.latest_end_date).slice(0, 10) : null;

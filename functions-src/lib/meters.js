@@ -202,8 +202,10 @@ function ratesText(r) {
 
 
 // Turns the bill reader's result into meter rows the card shows (same shape as Excel rows).
-function billMeters(result, supplierNames, source) {
-  const supplier = result.supplier ? (matchSupplier(result.supplier, supplierNames || []) || null) : null;
+// suppliers: the single list's resolve(text) -> row, or a plain list of names
+function billMeters(result, suppliers, source) {
+  const supplier = !result.supplier ? null : typeof suppliers === 'function'
+    ? ((suppliers(result.supplier) || {}).name || null) : (matchSupplier(result.supplier, suppliers || []) || null);
   return (result.meters || []).map((x) => {
     const meter = parseMeterNumber(x.supply_number, x.fuel);
     const printed = parseDate(x.contract_end_text);
@@ -243,5 +245,34 @@ function mergeCheck(meters, check) {
   });
 }
 
-module.exports = { billMeters, mergeCheck, mpanCoreValid, parseMeterNumber, normaliseFuel, parseDate, parseMeterRows, addMonths, groupMeters,
+// What a meter still needs before Pricing can price it. Region comes from the MPAN itself; the rest
+// comes from the bill, the registry, a meter already in HubSpot, or the rep.
+// Returns a list of plain names, empty when complete.
+const isHH = (m) => (m.profile || m.profileClass) === '00';
+function meterTypeOf(m) {
+  if (m.meterType) return m.meterType;
+  const r = m.rates || {};
+  if (r.day != null && r.night != null) return 'Economy 7';
+  if (r.unit != null) return 'Standard';
+  return null;
+}
+function missingForPricing(m) {
+  if (m.included === false) return [];
+  const out = [];
+  if (!m.supplier) out.push('current supplier');
+  if (!m.ced) out.push('contract end date');
+  if (!(Number(m.annualKwh) > 0)) out.push('annual consumption');
+  if (m.fuel === 'Gas') {
+    if (!m.ldz) out.push('gas zone (LDZ)');
+  } else {
+    if (!(m.profile || m.profileClass)) out.push('profile class');
+    if (isHH(m)) {
+      if (!(Number(m.kva) > 0)) out.push('kVA');
+      if (!m.voltage) out.push('HH voltage');
+    } else if (!meterTypeOf(m)) out.push('meter type');
+  }
+  return out;
+}
+
+module.exports = { missingForPricing, meterTypeOf, isHH, billMeters, mergeCheck, mpanCoreValid, parseMeterNumber, normaliseFuel, parseDate, parseMeterRows, addMonths, groupMeters,
   normPostcode, formatPostcode, siteKey, matchSite, matchSupplier, ratesText };
