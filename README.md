@@ -75,8 +75,24 @@ Steps: Upload > Read > Look up > Review & confirm > Add to HubSpot.
 | `sandbox` | Sandbox (149841037) | `HUBSPOT_SANDBOX` | `src/hsprofile.sandbox.json` |
 
 Each environment holds that account's `HUBSPOT_PERSONAL_ACCESS_KEY` secret and `HUBSPOT_ACCOUNT_ID` variable.
-Run the **Meter Capture setup** workflow (dry run first) to add the properties and the `supplier_code_map` HubDB table.
+The sandbox deploy runs `scripts/setup-sales-tools.mjs` first (for live, run the **Sales tools setup** workflow, dry run first). It adds the supplier list, the supplier dropdowns and the Meter Capture, customer requirements and accepted option properties.
 
 ### Switching on later
 - Bill reading: add the app secret `ANTHROPIC_API_KEY`, then add it to `secretKeys` in `mc-read-hsmeta.json` and `mc-context-hsmeta.json`.
 - Electralink / Xoserve: implement `functions-src/lib/registry.js` once the API docs are in; credentials go in app secrets.
+
+## The single supplier list
+
+`hubdb/suppliers.csv` seeds the HubDB table `supplier_code_map`, which is the master list (names as in Utility Click).
+Columns: `name`, `trades_with`, `stips_group`, `pricebook_codes`, `registry_codes`, `aliases`, `tier`, `notes`.
+
+- Meter Capture: bill wording and registry codes resolve to a name; Meter "Incumbent supplier" holds every name.
+- Pricing: the price-book loader reads `pricebook_codes`; Deal "Accepted supplier" holds the suppliers Troo trades with.
+- Revenue calculator: a supplier name resolves to its stipulation group (`stips_group`).
+- `test/suppliers.test.js` fails if a price-book supplier, file code or stipulation supplier isn't on the list.
+
+## Deal fields
+
+- Customer requirements (`req_*`), from the RFQ playbook: contract lengths, start date, green, payment method, partner, credit check. Pricing prefills durations and the start date from them.
+- Accepted option (`ao_*`), from the Customer accepted playbook: supplier, product, Matrix/Bespoke, length, start date, commission, sponsorship; `ao_gross_revenue` and `ao_net_revenue` are calculated. Copied to each meter's Contract record at lock-in.
+- Meter data completeness: `mcap_data_complete` / `mcap_data_missing` on the deal and `mcap_missing` on each meter, set by Meter Capture; the check before RFQ uses them.
