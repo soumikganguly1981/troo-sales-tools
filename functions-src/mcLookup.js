@@ -15,7 +15,8 @@ exports.main = async (context) => {
     const meters = (Array.isArray(p.meters) ? p.meters : []).filter((m) => m && m.number).slice(0, MAX);
     if (!meters.length) return ok({ results: [] });
     const types = await objectTypes();
-    const props = ['meter_number', 'bottom_line_meter_number__unique_identifier_', 'mc_current_supplier', 'current_supplier', 'contract_end_date', 'postcode'];
+    const props = ['meter_number', 'bottom_line_meter_number__unique_identifier_', 'mc_current_supplier', 'current_supplier', 'contract_end_date', 'postcode',
+      'top_line_meter_number', 'mp_profile_class', 'meter_type', 'aq', 'consumption__kwh_', 'mp_gas_ldz', 'kva', 'mp_hh_voltage'];
     const numbers = meters.map((m) => String(m.number));
     const found = [
       ...(await searchIn(types.meters, 'meter_number', numbers, props)),
@@ -27,7 +28,7 @@ exports.main = async (context) => {
         if (n && !byNumber.has(String(n).trim())) byNumber.set(String(n).trim(), f);
       }
     }
-    const { byCode } = await supplierMap(types.meters);
+    const { byCode } = await supplierMap();
     const results = [];
     for (const m of meters) {
       const existing = byNumber.get(String(m.number));
@@ -36,7 +37,11 @@ exports.main = async (context) => {
       results.push({
         number: String(m.number),
         existing: existing ? { id: existing.id, supplier: existing.properties.mc_current_supplier || existing.properties.current_supplier || null,
-          ced: existing.properties.contract_end_date || null, postcode: existing.properties.postcode || null } : null,
+          ced: existing.properties.contract_end_date || null, postcode: existing.properties.postcode || null,
+          // pricing data already on the meter, used to fill gaps
+          profile: (String(existing.properties.top_line_meter_number || '').replace(/\D/g, '').slice(0, 2)) || existing.properties.mp_profile_class || null,
+          meterType: existing.properties.meter_type || null, annualKwh: Number(existing.properties.aq) || Number(existing.properties.consumption__kwh_) || null,
+          ldz: existing.properties.mp_gas_ldz || null, kva: Number(existing.properties.kva) || null, voltage: existing.properties.mp_hh_voltage || null } : null,
         registry: reg,
       });
     }

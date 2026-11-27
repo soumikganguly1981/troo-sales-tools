@@ -10,7 +10,7 @@
 //  - Unticked meters are saved to the company and Site but left off every deal.
 const { api, ok, fail } = require('./lib/http');
 const crm = require('./lib/crm');
-const { groupMeters, matchSite, siteKey, formatPostcode, ratesText } = require('./lib/meters');
+const { groupMeters, matchSite, siteKey, formatPostcode, ratesText, missingForPricing, meterTypeOf, isHH } = require('./lib/meters');
 
 const MAX = 150;
 const SKIP_COPY = /^(hs_|mcap_|num_|days_to_close|dealname$|pipeline$|dealstage$|amount$|amount_in_home_currency$|closedate$|createdate$|ced_group_date$|mp_quote_shortlist$|contract_loss_applied$)/;
@@ -28,11 +28,12 @@ const only = (props, allowed, dropped) => Object.fromEntries(Object.entries(prop
 
 function meterProps(m, ctx) {
   const r = m.rates || {};
-  const meterType = r.day != null && r.night != null ? 'Economy 7' : (r.unit != null ? 'Standard' : null);
+  const meterType = meterTypeOf(m);
+  const missing = missingForPricing({ ...m, included: true });
   const source = m.supplier && m.registrySupplier && m.supplier !== m.registrySupplier ? 'Rep override'
     : m.registrySupplier ? 'Registry' : m.supplier ? 'Rep (no registry)' : null;
-  return clean({
-    utility: m.fuel === 'Gas' ? 'Gas' : (m.profile === '00' ? 'HH' : 'NHH'),
+  return { ...clean({
+    utility: m.fuel === 'Gas' ? 'Gas' : (isHH(m) ? 'HH' : 'NHH'),
     meter_number: m.number,
     bottom_line_meter_number__unique_identifier_: m.number,
     top_line_meter_number: m.topLine,
@@ -40,7 +41,11 @@ function meterProps(m, ctx) {
     consumption__kwh_: m.annualKwh,
     aq: m.fuel === 'Gas' ? m.annualKwh : null,
     postcode: m.postcode ? formatPostcode(m.postcode) : null,
-    meter_type: meterType,
+    meter_type: m.fuel === 'Gas' || isHH(m) ? null : meterType,
+    mp_profile_class: m.fuel === 'Gas' ? null : (m.profile || m.profileClass),
+    mp_gas_ldz: m.fuel === 'Gas' ? m.ldz : null,
+    kva: isHH(m) ? m.kva : null,
+    mp_hh_voltage: isHH(m) ? m.voltage : null,
     mc_current_supplier: m.supplier && ctx.supplierOptions.includes(m.supplier) ? m.supplier : null,
     rates_unitdaynight_pence_per_kwh: ratesText(r) || null,
     rates_standing_charge__pday: r.standing_charge,
@@ -54,7 +59,7 @@ function meterProps(m, ctx) {
     mcap_captured_on: ctx.today,
     mcap_captured_by: ctx.by,
     mcap_capture_deal_id: ctx.dealId,
-  });
+  }), mcap_missing: missing.join(', ') }; // empty clears an old list once the meter is complete
 }
 
 exports.main = async (context) => {
@@ -124,6 +129,7 @@ exports.main = async (context) => {
       return ok({ preview: true, companyName,
         groups: groups.map((g) => ({ key: g.key, kind: g.kind, label: g.label, meters: g.meters.map((m) => m.number), earliestCed: g.earliestCed, flags: g.flags,
           dealName: g.kind === 'this' ? od.dealname : `${companyName} - ${g.label}`, exists: g.kind === 'this' || have.has(g.key),
+          missing: g.meters.map((m) => [m.number, missingForPricing({ ...m, included: true })]).filter(([, x]) => x.length).map(([n, x]) => `${n}: ${x.join(', ')}`),
           stage: g.kind === 'future' ? (fut.parked ? fut.label : `${fut.label} (no Future Opportunity stage yet)`) : null })),
         sites: { new: newSites.size, matched: new Set([...siteFor.values()].filter((v) => !v.startsWith('key:'))).size, newList: [...newSites.values()] },
         meters: { new: all.filter((m) => !idFor.has(String(m.number))).length, existing: all.filter((m) => idFor.has(String(m.number))).length,
@@ -188,11 +194,15 @@ exports.main = async (context) => {
       const meterIds = g.meters.map((m) => idFor.get(String(m.number))).filter(Boolean);
       await crm.associate('deals', types.meters, meterIds.map((mid) => [id, mid]));
       const kwh = g.meters.reduce((t, m) => t + (Number(m.annualKwh) || 0), 0);
+      const gaps = g.meters.map((m) => [m.number, missingForPricing({ ...m, included: true })]).filter(([, x]) => x.length);
       const roll = only(clean({ mcap_meter_count: g.meters.length, mcap_total_kwh: kwh || null, ced_group_date: g.earliestCed,
-        mcap_status: 'Complete', mcap_completed_on: today }), dealAllowed, dropped);
+        mcap_status: 'Complete', mcap_completed_on: today,
+        mcap_data_complete: gaps.length ? 'false' : 'true', mcap_data_missing: gaps.map(([n, x]) => `${n}: ${x.join(', ')}`).join('\n') }), dealAllowed, dropped);
+      if (!gaps.length && dealAllowed.has('mcap_data_missing')) roll.mcap_data_missing = '';
       if (id === dealId && dealAllowed.has('mcap_draft')) roll.mcap_draft = '';
       await api('PATCH', `/crm/v3/objects/deals/${id}`, { properties: roll });
-      out.push({ key: g.key, kind: g.kind, label: g.label, dealId: id, created, meters: g.meters.map((m) => m.number), earliestCed: g.earliestCed, flags: g.flags, stageNote });
+      out.push({ key: g.key, kind: g.kind, label: g.label, dealId: id, created, meters: g.meters.map((m) => m.number), earliestCed: g.earliestCed, flags: g.flags, stageNote,
+        dataComplete: !gaps.length, missing: gaps.map(([n, x]) => `${n}: ${x.join(', ')}`) });
     }
     if (!groups.some((g) => g.kind === 'this')) {
       await api('PATCH', `/crm/v3/objects/deals/${dealId}`, { properties: only({ mcap_status: 'Complete', mcap_completed_on: today, mcap_draft: '', mcap_meter_count: 0 }, dealAllowed, dropped) });

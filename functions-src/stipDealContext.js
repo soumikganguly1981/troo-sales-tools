@@ -4,27 +4,16 @@
 // current supplier from the Meter's current contract supplier.
 const { api, ok, fail } = require('./lib/http');
 const { objectTypes } = require('./lib/crm'); // Meter type ID differs between the sandbox and live
+const { loadSuppliers } = require('./lib/suppliers'); // the single supplier list: name -> stipulation group
 
 const ELEC = new Set(['HH', 'NHH', 'Half Hourly Electric', 'Non Half Hourly Electric']);
 const HH = new Set(['HH', 'Half Hourly Electric']);
-const GROUPS = [
-  [/^(bg|bgb|bg lite|bg plus|british gas)\b/i, 'bg'],
-  [/^corona/i, 'corona'],
-  [/^crown/i, 'crown'],
-  [/^drax/i, 'drax'],
-  [/^edf/i, 'edf'],
-  [/^engie/i, 'engie'],
-  [/^npower/i, 'npower'],
-  [/^shell/i, 'shell'],
-  [/^smartest/i, 'smartest'],
-  [/^total/i, 'total'],
-];
-const groupOf = (s) => { if (!s) return ''; const g = GROUPS.find(([re]) => re.test(String(s).trim())); return g ? g[1] : ''; };
 const addDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
 
 exports.main = async (context) => {
   try {
     const METER = (await objectTypes()).meters;
+    const groupOf = (await loadSuppliers()).stipsGroup;
     const dealId = String((context.parameters && context.parameters.dealId) || '');
     if (!/^\d+$/.test(dealId)) return fail(400, 'Missing deal ID');
 

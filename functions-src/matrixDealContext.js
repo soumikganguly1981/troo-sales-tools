@@ -10,7 +10,7 @@ const { FAMILY } = require('./lib/families');
 
 const PROPS = ['utility', 'meter_number', 'bottom_line_meter_number__unique_identifier_', 'top_line_meter_number', 'meter_type', 'aq',
   'consumption__kwh_', 'latest_end_date', 'kva', 'mc_current_supplier', 'current_contract_supplier',
-  'mp_band', 'mp_day_share_pct', 'mp_hh_voltage', 'mp_metering', 'mp_gas_ldz', 'mp_gas_exit_zone'];
+  'mp_band', 'mp_day_share_pct', 'mp_hh_voltage', 'mp_metering', 'mp_gas_ldz', 'mp_gas_exit_zone', 'mp_profile_class'];
 const addDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
 
 exports.main = async (context) => {
@@ -18,10 +18,16 @@ exports.main = async (context) => {
     const METER = (await objectTypes()).meters;
     const dealId = String((context.parameters && context.parameters.dealId) || '');
     if (!/^\d+$/.test(dealId)) return fail(400, 'Missing deal ID');
-    const deal = await api('GET', `/crm/v3/objects/deals/${dealId}?properties=dealname,ced_group_date`);
+    const deal = await api('GET', `/crm/v3/objects/deals/${dealId}?properties=dealname,ced_group_date,req_contract_lengths,req_start_date,req_start_type`);
     if (deal.status !== 200) return fail(deal.status, `Couldn't read the deal (${deal.status})`);
     const dp = deal.body.properties || {};
     const ced = dp.ced_group_date ? String(dp.ced_group_date).slice(0, 10) : null;
+    // the customer's requirements from the RFQ playbook: contract lengths to price and the start date
+    const requirements = {
+      lengths: String(dp.req_contract_lengths || '').split(';').map(Number).filter((n) => n > 0).sort((a, b) => a - b),
+      startDate: dp.req_start_date ? String(dp.req_start_date).slice(0, 10) : null,
+      changeOfTenancy: dp.req_start_type === 'Change of tenancy',
+    };
 
     const ids = []; let after = null;
     do {
@@ -47,7 +53,7 @@ exports.main = async (context) => {
     if (!books.length && !booksError) notes.push('No price books are loaded yet. The Pricing team adds them to the Price books folder.');
     // suppliers with a stipulation get the maximum commission when the field is left blank
     const stipulated = [...new Set(books.map((b) => b.supplier))].filter((s) => FAMILY[s]);
-    return ok({ dealName: dp.dealname || '', ced, meters: priceable, books, stipulated, booksError, notes });
+    return ok({ dealName: dp.dealname || '', ced, meters: priceable, books, stipulated, booksError, notes, requirements });
   } catch (e) {
     return fail(500, `Couldn't read the deal: ${e.message}`);
   }

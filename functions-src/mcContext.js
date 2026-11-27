@@ -41,7 +41,7 @@ exports.main = async (context) => {
         .map((s) => ({ id: s.id, name: s.properties.site_name || '', address: s.properties.address || '', postcode: s.properties.postal_code || '' }));
     }
     const meterIds = await associatedIds('deals', dealId, types.meters);
-    const suppliers = await supplierMap(types.meters);
+    const suppliers = await supplierMap();
 
     let draft = null;
     try { draft = dp.mcap_draft ? JSON.parse(dp.mcap_draft) : null; } catch { draft = null; }
@@ -49,7 +49,7 @@ exports.main = async (context) => {
     const notes = [];
     if (!company) notes.push('This deal has no company. Link the company first: Sites and Meters are saved to it.');
     if (companyIds.length > 1) notes.push(`This deal has ${companyIds.length} companies; Sites and Meters go to the first one (${company.name}).`);
-    if (suppliers.source === 'property') notes.push('The supplier code table (HubDB supplier_code_map) is not set up here yet; the supplier list comes from the Meter dropdown.');
+    if (suppliers.source === 'bundled') notes.push('The supplier list (HubDB supplier_code_map) is not set up in this account yet, so the copy built into the app is used.');
 
     return ok({
       deal: { id: dealId, name: dp.dealname || '', pipeline: dp.pipeline, stage: dp.dealstage, owner: dp.hubspot_owner_id || null,
