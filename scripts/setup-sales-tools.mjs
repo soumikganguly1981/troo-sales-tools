@@ -163,6 +163,7 @@ async function ensureProps(type, list, { softly = false } = {}) {
   const have = new Set(r.body.results.map((p) => p.name));
   for (const { g, ...p } of list) {
     if (have.has(p.name)) { console.log(`  ${type}.${p.name}: exists`); continue; }
+    if (p.type === 'enumeration' && p.fieldType !== 'booleancheckbox' && !(p.options || []).length) { console.log(`  WARNING: ${type}.${p.name} skipped: no options to give it`); continue; }
     await (softly ? soft : write)(`create ${type}.${p.name}`, 'POST', `/crm/v3/properties/${type}`, { groupName: GROUPS[g].name, ...p });
   }
   return have;
@@ -172,6 +173,7 @@ async function ensureProps(type, list, { softly = false } = {}) {
 async function syncDropdown(type, name, label, names) {
   const prop = await call('GET', `/crm/v3/properties/${type}/${name}`);
   if (prop.status !== 200) { console.log(`  ${label}: property ${name} not found, skipped`); return; }
+  if (!names.length) { console.log(`  ${label}: no names to sync, skipped`); return; }
   const current = prop.body.options || [];
   const values = new Set(current.map((o) => o.value));
   const add = names.filter((n) => !values.has(n));
@@ -218,8 +220,17 @@ async function supplierList() {
     await write(`publish ${TABLE}`, 'POST', `/cms/v3/hubdb/tables/${TABLE}/draft/publish`);
   }
   const all = [...rows, ...inputs.map((x) => x.values)].filter((r) => r.name);
-  const truthy = (v) => v === true || v === 1 || String(v).toLowerCase() === 'true';
-  return { names: [...new Set(all.map((r) => r.name))].sort(), tradesWith: [...new Set(all.filter((r) => truthy(r.trades_with)).map((r) => r.name))].sort() };
+  // HubDB can hand a BOOLEAN back as true/false, 1/0 or {name:...}; accept them all
+  const truthy = (v) => v === true || v === 1 || ['true', '1', 'yes'].includes(String(v && typeof v === 'object' ? v.name : v).toLowerCase());
+  const seen = {};
+  for (const r of rows) { const k = JSON.stringify(r.trades_with); seen[k] = (seen[k] || 0) + 1; }
+  if (rows.length) console.log(`  "Troo trades with" values in HubDB: ${JSON.stringify(seen)}`);
+  let tradesWith = [...new Set(all.filter((r) => truthy(r.trades_with)).map((r) => r.name))].sort();
+  if (!tradesWith.length) {
+    tradesWith = seed.filter((r) => r.trades_with === 'true').map((r) => r.name).sort();
+    console.log(`  WARNING: no supplier is ticked "Troo trades with" in HubDB; using the ${tradesWith.length} in suppliers.csv. Tick them in HubDB so the table stays the master.`);
+  }
+  return { names: [...new Set(all.map((r) => r.name))].sort(), tradesWith };
 }
 
 async function main() {
