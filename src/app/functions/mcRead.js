@@ -34005,7 +34005,15 @@ var require_meters = __commonJS({
       }
       return out;
     }
+    function postcodeCheck(registry, given) {
+      const a = normPostcode(registry), b = normPostcode(given);
+      if (!a || !b) return "missing";
+      if (a === b) return "match";
+      if (a.length > 3 && b.length > 3 && a.slice(0, -3) === b.slice(0, -3)) return "same area";
+      return "mismatch";
+    }
     module2.exports = {
+      postcodeCheck,
       missingForPricing,
       meterTypeOf,
       isHH,

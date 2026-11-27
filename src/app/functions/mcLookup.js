@@ -381,15 +381,175 @@ var require_suppliers2 = __commonJS({
 // functions-src/lib/registry.js
 var require_registry = __commonJS({
   "functions-src/lib/registry.js"(exports2, module2) {
-    var electralinkConnected = () => false;
-    var xoserveConnected = () => false;
-    async function lookupElectricity() {
-      if (!electralinkConnected()) return { status: "not_connected" };
-      throw new Error("Electralink lookup not implemented");
+    var EL_BASE = "https://api.electralink.co.uk/v1";
+    var XO_SWITCH = "https://desapi-css-prod.xoserveapis.com/query/v1/switch";
+    var TIMEOUT_MS = 6e3;
+    var env = (k) => String(process.env[k] || "").trim();
+    var electralinkConnected = () => !!(env("ELECTRALINK_NHH_KEY") && env("ELECTRALINK_NHH_PASSWORD"));
+    var xoserveConnected = () => ["XOSERVE_CLIENT_ID", "XOSERVE_CLIENT_SECRET", "XOSERVE_SCOPE", "XOSERVE_TOKEN_URL", "XOSERVE_API_KEY"].every((k) => !!env(k));
+    var RegistryError = class extends Error {
+    };
+    async function request(url, options = {}) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      try {
+        const r = await fetch(url, { ...options, signal: ctrl.signal });
+        const text = await r.text();
+        let body = null;
+        try {
+          body = text ? JSON.parse(text) : null;
+        } catch {
+          body = null;
+        }
+        return { status: r.status, body, text };
+      } catch (e) {
+        throw new RegistryError(e.name === "AbortError" ? "timed out" : e.message);
+      } finally {
+        clearTimeout(timer);
+      }
     }
-    async function lookupGas() {
+    var str = (v) => v == null ? "" : String(v).trim();
+    var num = (v) => {
+      const n = Number(String(v ?? "").replace(/,/g, ""));
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    function isoDate(v) {
+      const s = str(v);
+      let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+      m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+      return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+    }
+    function pick(rec, re) {
+      const seen = [rec];
+      for (const o of seen) {
+        if (!o || typeof o !== "object") continue;
+        for (const [k, v] of Object.entries(o)) {
+          if (re.test(k) && v != null && typeof v !== "object" && str(v)) return v;
+        }
+        if (seen.length < 20) {
+          for (const v of Object.values(o)) if (v && typeof v === "object") seen.push(...Array.isArray(v) ? v : [v]);
+        }
+      }
+      return null;
+    }
+    var firstRecord = (body) => {
+      if (Array.isArray(body)) return body[0] || null;
+      if (body && Array.isArray(body.switchGasData)) return body.switchGasData[0] || null;
+      if (body && Array.isArray(body.data)) return body.data[0] || null;
+      return body && typeof body === "object" && Object.keys(body).length ? body : null;
+    };
+    function failure(service, r) {
+      if (r.status === 401 || r.status === 403) return new RegistryError(`${service} rejected the app's credentials (HTTP ${r.status})`);
+      if (r.status === 429) return new RegistryError(`${service} is busy, try again in a minute`);
+      return new RegistryError(`${service} returned HTTP ${r.status}`);
+    }
+    function parseElectralink(rec) {
+      const lines = [];
+      for (let i = 1; i <= 9; i++) {
+        const l = str(rec[`metering_point_address_line_${i}`]);
+        if (l) lines.push(l);
+      }
+      const postcode = str(rec.post_code || rec.postcode) || null;
+      const pcRaw = str(pick(rec, /^(profile_class(_id)?|pc)$/i));
+      const profile = /^\d{1,2}$/.test(pcRaw) ? pcRaw.padStart(2, "0") : "";
+      return {
+        status: "ok",
+        source: "Electralink",
+        supplierCode: str(rec.supplier_id).toUpperCase() || null,
+        supplierSince: isoDate(rec.supplier_efd),
+        address: lines.filter((l) => l.replace(/\s/g, "").toUpperCase() !== (postcode || "").replace(/\s/g, "").toUpperCase()).join(", ") || null,
+        postcode,
+        annualKwh: num(rec.total_eac),
+        eacDate: isoDate(rec.eac_efd),
+        profile: /^0[0-8]$/.test(profile) ? profile : null
+      };
+    }
+    async function lookupElectricity(mpan) {
+      if (!electralinkConnected()) return { status: "not_connected" };
+      const core = String(mpan || "").replace(/\D/g, "");
+      if (core.length !== 13) return { status: "error", message: "An MPAN core has 13 digits" };
+      const r = await request(`${EL_BASE}/eac?mpan=${core}`, {
+        headers: { "api-key": env("ELECTRALINK_NHH_KEY"), "api-password": env("ELECTRALINK_NHH_PASSWORD"), Accept: "application/json" }
+      });
+      if (r.status === 404 || r.status === 204) return { status: "not_found" };
+      if (r.status !== 200) throw failure("Electralink", r);
+      const rec = firstRecord(r.body);
+      if (!rec || !(rec.post_code || rec.supplier_id || rec.metering_point_address_line_1)) return { status: "not_found" };
+      return parseElectralink(rec);
+    }
+    var token = null;
+    async function xoserveToken() {
+      if (token && token.expires > Date.now() + 3e4) return token.value;
+      const form = new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: env("XOSERVE_CLIENT_ID"),
+        client_secret: env("XOSERVE_CLIENT_SECRET"),
+        scope: env("XOSERVE_SCOPE")
+      });
+      const r = await request(env("XOSERVE_TOKEN_URL"), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString() });
+      if (r.status !== 200 || !r.body?.access_token) {
+        throw new RegistryError(r.status === 400 || r.status === 401 ? `Xoserve login was refused (HTTP ${r.status}): check the client ID, secret and scope` : `Xoserve login failed (HTTP ${r.status})`);
+      }
+      token = { value: r.body.access_token, expires: Date.now() + (Number(r.body.expires_in) || 300) * 1e3 };
+      return token.value;
+    }
+    var ADDRESS_KEYS = [
+      /^(sub)?building(name|number)?$/i,
+      /^(premises|property)(name|number)?$/i,
+      /^organisation(name)?$/i,
+      /^(dependent)?thoroughfare(name)?$/i,
+      /^street(name)?\d?$/i,
+      /^(double)?(dependent)?locality$/i,
+      /^addressLine\d$/i,
+      /^postTown$/i,
+      /^county$/i
+    ];
+    function xoserveAddress(rec) {
+      const src = Array.isArray(rec.relAddress) && rec.relAddress[0] || rec;
+      const parts = [];
+      for (const re of ADDRESS_KEYS) {
+        for (const [k, v] of Object.entries(src)) {
+          if (re.test(k) && typeof v !== "object" && str(v) && !parts.includes(str(v))) parts.push(str(v));
+        }
+      }
+      return parts.join(", ") || null;
+    }
+    function parseXoserve(rec) {
+      const addr = Array.isArray(rec.relAddress) && rec.relAddress[0] || {};
+      const ldz = str(pick(rec, /^ldz(id|identifier|code)?$/i)).toUpperCase();
+      return {
+        status: "ok",
+        source: "Xoserve",
+        supplierCode: str(rec.currentSupplierId || pick(rec, /^currentSupplier(Id|ShortCode|Code)$/i)).toUpperCase() || null,
+        supplierName: str(pick(rec, /^currentSupplier(Name)?$/i)) || null,
+        supplierSince: isoDate(rec.currentSupplierRegEffectiveDate || pick(rec, /^currentSupplier.*Effective/i)),
+        address: xoserveAddress(rec),
+        postcode: str(rec.postcode || addr.postcode) || null,
+        annualKwh: num(rec.mpaq),
+        ldz: /^[A-Z]{2}$/.test(ldz) ? ldz : null,
+        exitZone: str(pick(rec, /^exitZone(Id|Code)?$/i)).toUpperCase() || null,
+        uprn: str(rec.uprn || addr.uprn) || null,
+        meterSerial: str(rec.meterSerialNumber || pick(rec, /^meterSerialNumber$/i)) || null
+      };
+    }
+    async function lookupGas(mprn) {
       if (!xoserveConnected()) return { status: "not_connected" };
-      throw new Error("Xoserve lookup not implemented");
+      const n = String(mprn || "").replace(/\D/g, "");
+      if (n.length < 6 || n.length > 10) return { status: "error", message: "An MPRN has 6 to 10 digits" };
+      const call = async () => request(`${XO_SWITCH}?meterPointReferenceNumber=${n}`, {
+        headers: { Authorization: `Bearer ${await xoserveToken()}`, "x-api-key": env("XOSERVE_API_KEY"), Accept: "application/json" }
+      });
+      let r = await call();
+      if (r.status === 401) {
+        token = null;
+        r = await call();
+      }
+      if (r.status === 404 || r.status === 204) return { status: "not_found" };
+      if (r.status !== 200) throw failure("Xoserve", r);
+      const rec = firstRecord(r.body);
+      if (!rec) return { status: "not_found" };
+      return parseXoserve(rec);
     }
     async function lookup2(meter) {
       try {
@@ -398,7 +558,311 @@ var require_registry = __commonJS({
         return { status: "error", message: e.message };
       }
     }
-    module2.exports = { lookup: lookup2, electralinkConnected, xoserveConnected };
+    module2.exports = {
+      lookup: lookup2,
+      lookupElectricity,
+      lookupGas,
+      electralinkConnected,
+      xoserveConnected,
+      parseElectralink,
+      parseXoserve,
+      _resetToken: () => {
+        token = null;
+      }
+    };
+  }
+});
+
+// functions-src/lib/meters.js
+var require_meters = __commonJS({
+  "functions-src/lib/meters.js"(exports2, module2) {
+    var MPAN_WEIGHTS = [3, 5, 7, 13, 17, 19, 23, 29, 31, 37, 41, 43];
+    var digits = (s) => String(s == null ? "" : s).replace(/\D/g, "");
+    function mpanCoreValid(core) {
+      if (!/^\d{13}$/.test(core)) return false;
+      const sum = MPAN_WEIGHTS.reduce((t, w, i) => t + w * Number(core[i]), 0);
+      return sum % 11 % 10 === Number(core[12]);
+    }
+    function parseMeterNumber(raw, fuelHint) {
+      const d = digits(raw);
+      const hint = normaliseFuel(fuelHint);
+      if (!d) return { fuel: hint, number: "", valid: false, problem: "No meter number" };
+      if (d.length === 21 && hint !== "Gas") {
+        const core = d.slice(8);
+        return {
+          fuel: "Elec",
+          number: core,
+          topLine: d.slice(0, 8),
+          profile: d.slice(0, 2),
+          valid: mpanCoreValid(core),
+          problem: mpanCoreValid(core) ? null : "MPAN check digit does not match"
+        };
+      }
+      if (d.length === 13 && hint !== "Gas") {
+        return { fuel: "Elec", number: d, valid: mpanCoreValid(d), problem: mpanCoreValid(d) ? null : "MPAN check digit does not match" };
+      }
+      if (d.length >= 6 && d.length <= 10 && hint !== "Elec") return { fuel: "Gas", number: d, valid: true, problem: null };
+      return {
+        fuel: hint,
+        number: d,
+        valid: false,
+        problem: hint === "Gas" ? "An MPRN has 6 to 10 digits" : hint === "Elec" ? "An MPAN has 13 digits (or 21 with the top line)" : "Not a recognisable MPAN or MPRN"
+      };
+    }
+    function normaliseFuel(v) {
+      const s = String(v == null ? "" : v).trim().toLowerCase();
+      if (!s) return null;
+      if (/^(e|elec|electric|electricity|power|hh|nhh|half hourly.*|non half hourly.*)$/.test(s)) return "Elec";
+      if (/^(g|gas|natural gas)$/.test(s)) return "Gas";
+      return null;
+    }
+    var MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    var pad = (n) => String(n).padStart(2, "0");
+    var iso = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+    var lastDay = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+    function realDate(y, m, d) {
+      if (!(y >= 1990 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= lastDay(y, m))) return null;
+      return iso(y, m, d);
+    }
+    function parseDate(v) {
+      if (v === null || v === void 0 || v === "") return { date: null, dayMissing: false };
+      if (v instanceof Date && !isNaN(v)) return { date: iso(v.getUTCFullYear(), v.getUTCMonth() + 1, v.getUTCDate()), dayMissing: false };
+      if (typeof v === "number") {
+        if (v > 2e4 && v < 8e4) {
+          const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 864e5);
+          return { date: iso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()), dayMissing: false };
+        }
+        return { date: null, dayMissing: false };
+      }
+      const s = String(v).trim();
+      let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return { date: realDate(+m[1], +m[2], +m[3]), dayMissing: false };
+      m = s.match(/^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2}|\d{4})$/);
+      if (m) {
+        const y = m[3].length === 2 ? 2e3 + +m[3] : +m[3];
+        return { date: realDate(y, +m[2], +m[1]), dayMissing: false };
+      }
+      m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)\.?,?\s+(\d{4})$/i);
+      if (m && MONTHS.indexOf(m[2].slice(0, 3).toLowerCase()) >= 0) return { date: realDate(+m[3], MONTHS.indexOf(m[2].slice(0, 3).toLowerCase()) + 1, +m[1]), dayMissing: false };
+      m = s.match(/^([a-z]+)\.?\s+(\d{4})$/i) || s.match(/^(\d{1,2})[/.\-](\d{4})$/);
+      if (m) {
+        const mon = /^\d+$/.test(m[1]) ? +m[1] : MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()) + 1;
+        const y = +m[2];
+        if (mon >= 1 && mon <= 12) return { date: realDate(y, mon, lastDay(y, mon)), dayMissing: true };
+      }
+      return { date: null, dayMissing: false };
+    }
+    var HEADERS = {
+      number: /mpan|mprn|meter\s*(number|no|id)?|supply\s*number/i,
+      fuel: /fuel|utility|type/i,
+      ced: /contract\s*end|end\s*date|\bced\b|expiry/i
+    };
+    function parseMeterRows(rows) {
+      const out = [];
+      const problems = [];
+      const start = rows.findIndex((r) => Array.isArray(r) && r.some((c) => String(c ?? "").trim()));
+      if (start < 0) return { meters: out, problems: ["The file is empty"] };
+      const head = rows[start].map((c) => String(c ?? "").trim());
+      const col = {};
+      for (const [k, re] of Object.entries(HEADERS)) {
+        col[k] = head.findIndex((h, i) => re.test(h) && !(k !== "ced" && HEADERS.ced.test(h)) && !Object.values(col).includes(i));
+      }
+      if (col.number < 0) return { meters: out, problems: ["No MPAN / MPRN column found. The template has three columns: MPAN / MPRN, Fuel, Contract end date."] };
+      const seen = /* @__PURE__ */ new Set();
+      for (let i = start + 1; i < rows.length; i++) {
+        const r = rows[i] || [];
+        if (!r.some((c) => String(c ?? "").trim())) continue;
+        const line = i + 1;
+        const fuelRaw = col.fuel >= 0 ? r[col.fuel] : null;
+        const meter = parseMeterNumber(r[col.number], fuelRaw);
+        if (fuelRaw && !normaliseFuel(fuelRaw)) problems.push(`Row ${line}: fuel "${fuelRaw}" should be Electricity or Gas`);
+        const ced = col.ced >= 0 ? parseDate(r[col.ced]) : { date: null, dayMissing: false };
+        if (col.ced >= 0 && String(r[col.ced] ?? "").trim() && !ced.date) problems.push(`Row ${line}: contract end date "${r[col.ced]}" isn't a date (use DD/MM/YYYY)`);
+        if (meter.problem) problems.push(`Row ${line}: ${meter.problem}`);
+        if (meter.number && seen.has(meter.number)) {
+          problems.push(`Row ${line}: ${meter.number} appears more than once; kept the first`);
+          continue;
+        }
+        if (meter.number) seen.add(meter.number);
+        out.push({ ...meter, ced: ced.date, cedDayMissing: ced.dayMissing, source: "Excel", row: line });
+      }
+      if (!out.length && !problems.length) problems.push("No meter rows found under the header");
+      return { meters: out, problems };
+    }
+    var addMonths = (isoDate, n) => {
+      const [y, m, d] = isoDate.split("-").map(Number);
+      const t = new Date(Date.UTC(y, m - 1 + n, 1));
+      return iso(t.getUTCFullYear(), t.getUTCMonth() + 1, Math.min(d, lastDay(t.getUTCFullYear(), t.getUTCMonth() + 1)));
+    };
+    function groupMeters(meters, today, windowMonths = 12) {
+      const limit = addMonths(today, windowMonths);
+      const groups = /* @__PURE__ */ new Map();
+      const put = (key, base, m) => {
+        if (!groups.has(key)) groups.set(key, { key, ...base, meters: [], earliestCed: null, flags: [] });
+        const g = groups.get(key);
+        g.meters.push(m);
+        if (m.ced && (!g.earliestCed || m.ced < g.earliestCed)) g.earliestCed = m.ced;
+      };
+      for (const m of meters.filter((x) => x.included !== false)) {
+        const beyond = m.ced && m.ced > limit;
+        if (beyond) {
+          const year = m.ced.slice(0, 4);
+          put(`future-${m.fuel === "Gas" ? "gas" : "elec"}-${year}`, {
+            kind: "future",
+            fuel: m.fuel,
+            year,
+            label: `${m.fuel === "Gas" ? "Gas" : "Electricity"} \xB7 CED ${year}`
+          }, m);
+        } else if (m.fuel === "Gas") {
+          put("gas", { kind: "gas", fuel: "Gas", label: "Gas" }, m);
+        } else {
+          put("this", { kind: "this", fuel: "Elec", label: "Electricity" }, m);
+        }
+      }
+      for (const g of groups.values()) {
+        const noCed = g.meters.filter((m) => !m.ced).length;
+        const passed = g.meters.filter((m) => m.ced && m.ced < today).length;
+        if (noCed) g.flags.push(`${noCed} meter${noCed > 1 ? "s have" : " has"} no contract end date`);
+        if (passed) g.flags.push(`${passed} contract end date${passed > 1 ? "s have" : " has"} passed (possibly out of contract)`);
+      }
+      const order = { this: 0, gas: 1, future: 2 };
+      return [...groups.values()].sort((a, b) => order[a.kind] - order[b.kind] || String(a.year).localeCompare(String(b.year)) || a.fuel.localeCompare(b.fuel));
+    }
+    var normPostcode = (p) => String(p || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    var formatPostcode = (p) => {
+      const n = normPostcode(p);
+      return n.length > 3 ? `${n.slice(0, -3)} ${n.slice(-3)}` : n;
+    };
+    function firstLine(address) {
+      const parts = String(address || "").toUpperCase().split(/[,\n]/).map((s) => s.replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
+      const i = parts.findIndex((p) => /^(\d|UNIT|FLAT|PLOT|SUITE|BLOCK|STAND)/.test(p));
+      return parts[i >= 0 ? i : 0] || "";
+    }
+    var siteKey = (address, postcode) => `${normPostcode(postcode)}|${firstLine(address)}`;
+    function matchSite(address, postcode, sites) {
+      const pc = normPostcode(postcode);
+      if (!pc) return null;
+      const same = sites.filter((s) => normPostcode(s.postcode) === pc);
+      if (same.length === 1) return same[0];
+      const line = firstLine(address);
+      return same.find((s) => firstLine(s.address) === line) || null;
+    }
+    var supKey = (s) => String(s || "").toLowerCase().replace(/\b(ltd|limited|plc|uk|business|customers|trading|retail|supply|the)\b/g, "").replace(/[^a-z0-9]/g, "");
+    function matchSupplier(text, names) {
+      const k = supKey(text);
+      if (!k) return null;
+      return names.find((n) => supKey(n) === k) || names.find((n) => supKey(n) && (k.startsWith(supKey(n)) || supKey(n).startsWith(k))) || null;
+    }
+    function ratesText(r) {
+      if (!r) return "";
+      const f = (x) => x === null || x === void 0 || x === "" ? null : Number(x).toFixed(2);
+      if (f(r.day) && f(r.night)) return `D ${f(r.day)} N ${f(r.night)}`;
+      if (f(r.unit)) return `U ${f(r.unit)}`;
+      if (f(r.day)) return `D ${f(r.day)}`;
+      return "";
+    }
+    function billMeters(result, suppliers, source) {
+      const supplier = !result.supplier ? null : typeof suppliers === "function" ? (suppliers(result.supplier) || {}).name || null : matchSupplier(result.supplier, suppliers || []) || null;
+      return (result.meters || []).map((x) => {
+        const meter = parseMeterNumber(x.supply_number, x.fuel);
+        const printed = parseDate(x.contract_end_text);
+        const ced = printed.date ? printed : parseDate(x.contract_end_date);
+        return {
+          ...meter,
+          source,
+          ced: ced.date,
+          cedDayMissing: ced.dayMissing,
+          cedText: x.contract_end_text || null,
+          address: x.site_address || null,
+          postcode: x.postcode ? formatPostcode(x.postcode) : null,
+          annualKwh: x.annual_kwh ?? null,
+          rates: x.rates || null,
+          billSupplier: result.supplier || null,
+          billSupplierMatch: supplier
+        };
+      });
+    }
+    function mergeCheck(meters, check) {
+      const byNumber = new Map((check.meters || []).map((c) => [digits(c.supply_number).slice(-13), c]));
+      return meters.map((m) => {
+        const c = byNumber.get(String(m.number).slice(-13)) || byNumber.get(String(m.number));
+        const toCheck = [...m.toCheck || []];
+        if (!c) return { ...m, checked: false, toCheck: [...toCheck, "meter number"] };
+        const out = { ...m, checked: true };
+        if (c.contract_end_date && c.contract_end_date !== m.ced) {
+          const d = parseDate(c.contract_end_date);
+          if (d.date) {
+            out.ced = d.date;
+            toCheck.push("contract end date");
+          }
+        }
+        if (c.contract_end_day_printed === false) out.cedDayMissing = true;
+        const r = c.rates || {};
+        const before = m.rates || {};
+        const changed = ["day", "night", "unit", "standing_charge"].filter((k) => r[k] != null && Number(r[k]) !== Number(before[k]));
+        if (changed.length) {
+          out.rates = { ...before, ...Object.fromEntries(changed.map((k) => [k, r[k]])) };
+          toCheck.push("rates");
+        }
+        if (r.rates_from && !before.rates_from) out.rates = { ...out.rates, rates_from: r.rates_from };
+        if (c.notes) out.checkNotes = c.notes;
+        out.toCheck = [...new Set(toCheck)];
+        return out;
+      });
+    }
+    var isHH = (m) => (m.profile || m.profileClass) === "00";
+    function meterTypeOf(m) {
+      if (m.meterType) return m.meterType;
+      const r = m.rates || {};
+      if (r.day != null && r.night != null) return "Economy 7";
+      if (r.unit != null) return "Standard";
+      return null;
+    }
+    function missingForPricing(m) {
+      if (m.included === false) return [];
+      const out = [];
+      if (!m.supplier) out.push("current supplier");
+      if (!m.ced) out.push("contract end date");
+      if (!(Number(m.annualKwh) > 0)) out.push("annual consumption");
+      if (m.fuel === "Gas") {
+        if (!m.ldz) out.push("gas zone (LDZ)");
+      } else {
+        if (!(m.profile || m.profileClass)) out.push("profile class");
+        if (isHH(m)) {
+          if (!(Number(m.kva) > 0)) out.push("kVA");
+          if (!m.voltage) out.push("HH voltage");
+        } else if (!meterTypeOf(m)) out.push("meter type");
+      }
+      return out;
+    }
+    function postcodeCheck2(registry, given) {
+      const a = normPostcode(registry), b = normPostcode(given);
+      if (!a || !b) return "missing";
+      if (a === b) return "match";
+      if (a.length > 3 && b.length > 3 && a.slice(0, -3) === b.slice(0, -3)) return "same area";
+      return "mismatch";
+    }
+    module2.exports = {
+      postcodeCheck: postcodeCheck2,
+      missingForPricing,
+      meterTypeOf,
+      isHH,
+      billMeters,
+      mergeCheck,
+      mpanCoreValid,
+      parseMeterNumber,
+      normaliseFuel,
+      parseDate,
+      parseMeterRows,
+      addMonths,
+      groupMeters,
+      normPostcode,
+      formatPostcode,
+      siteKey,
+      matchSite,
+      matchSupplier,
+      ratesText
+    };
   }
 });
 
@@ -407,7 +871,20 @@ var { ok, fail } = require_http();
 var { objectTypes, searchIn } = require_crm();
 var { supplierMap } = require_suppliers2();
 var { lookup } = require_registry();
-var MAX = 150;
+var { postcodeCheck } = require_meters();
+var MAX = 50;
+var PARALLEL = 8;
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  }));
+  return out;
+}
 exports.main = async (context) => {
   try {
     const p = context.parameters || {};
@@ -442,11 +919,16 @@ exports.main = async (context) => {
       }
     }
     const { byCode } = await supplierMap();
+    const regs = await mapLimit(meters, PARALLEL, (m) => lookup(m));
     const results = [];
-    for (const m of meters) {
+    for (const [i, m] of meters.entries()) {
       const existing = byNumber.get(String(m.number));
-      const reg = await lookup(m);
-      if (reg.status === "ok" && reg.supplierCode) reg.supplierName = byCode[String(reg.supplierCode).toUpperCase()]?.name || null;
+      const reg = regs[i];
+      if (reg.status === "ok") {
+        reg.registryName = reg.supplierName || null;
+        reg.supplierName = reg.supplierCode ? byCode[String(reg.supplierCode).toUpperCase()]?.name || null : null;
+        reg.postcodeCheck = postcodeCheck(reg.postcode, m.postcode || existing?.properties.postcode);
+      }
       results.push({
         number: String(m.number),
         existing: existing ? {
