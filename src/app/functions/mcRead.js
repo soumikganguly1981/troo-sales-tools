@@ -33607,7 +33607,7 @@ var require_billreader = __commonJS({
     var TIMEOUT_MS = 13e3;
     var MEDIA = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
     var configured = () => !!process.env.ANTHROPIC_API_KEY;
-    var SYSTEM = "You read UK business gas and electricity bills for an energy broker. Extract only what is printed. Never guess: use null when a value is not on the bill. Digits only for MPAN, MPRN and account numbers. Dates as YYYY-MM-DD. Rates in pence. If a date is printed without a day (e.g. 'March 2027'), use the last day of that month and list it in unclear. One meters[] entry per supply point. MPAN: read the 'S' supply number box. The top line is 8 digits; the bottom line is the 13-digit core, starting with a 2-digit distributor ID. Copy every digit exactly. RATES: if the bill shows more than one rate period (for example a price change part-way through), report ONLY the rates for the LATEST period and give that period's start date in rates_from. Unit rates are energy unit rates only (Day, Night, Single, etc.). Never include levies, CCL, pass-through or non-commodity charges as unit rates. If consumption for the period is zero and no unit rate is printed, leave the unit rates null.";
+    var SYSTEM = "You read UK business gas and electricity bills for an energy broker. Extract only what is printed. Never guess: use null when a value is not on the bill. Digits only for MPAN, MPRN and account numbers. Dates as YYYY-MM-DD. Rates in pence. If a date is printed without a day (e.g. 'March 2027'), use the last day of that month and list it in unclear. One meters[] entry per supply point. MPAN: read the 'S' supply number box. The top line is 8 digits; the bottom line is the 13-digit core, starting with a 2-digit distributor ID. Copy every digit exactly. supply_number is the 13-digit core only: never join the top line onto it. RATES: if the bill shows more than one rate period (for example a price change part-way through), report ONLY the rates for the LATEST period and give that period's start date in rates_from. Unit rates are energy unit rates only (Day, Night, Single, etc.). Never include levies, CCL, pass-through or non-commodity charges as unit rates. If consumption for the period is zero and no unit rate is printed, leave the unit rates null.";
     var RATES = {
       type: "object",
       properties: {
@@ -33622,7 +33622,8 @@ var require_billreader = __commonJS({
       type: "object",
       properties: {
         fuel: { type: "string", enum: ["Elec", "Gas"] },
-        supply_number: { type: "string", description: "MPAN (all digits printed, top line and core) or MPRN, digits only" },
+        supply_number: { type: "string", description: "Electricity: the 13-digit MPAN core (bottom line of the S box). Gas: the MPRN. Digits only, never letters" },
+        mpan_top_line: { type: ["string", "null"], description: "Electricity only: the top line of the S box as printed (profile, MTC, LLF); may contain letters" },
         site_address: { type: ["string", "null"], description: "Supply address as printed, without the postcode" },
         postcode: { type: ["string", "null"] },
         contract_end_text: { type: ["string", "null"], description: "Contract end date exactly as printed" },
@@ -33643,7 +33644,7 @@ var require_billreader = __commonJS({
           customer_name: { type: ["string", "null"] },
           bill_date: { type: ["string", "null"], description: "YYYY-MM-DD" },
           meters: { type: "array", items: METER },
-          unclear: { type: "array", items: { type: "string" }, description: "Fields that were hard to read or missing" }
+          unclear: { type: "array", items: { type: "string" }, description: 'Names of fields that were hard to read or missing, a few words each (e.g. "contract end date"). No explanations' }
         },
         required: ["is_energy_bill", "meters"]
       }
@@ -33772,6 +33773,10 @@ var require_meters = __commonJS({
         return { fuel: "Elec", number: d, valid: mpanCoreValid(d), problem: mpanCoreValid(d) ? null : "MPAN check digit does not match" };
       }
       if (d.length >= 6 && d.length <= 10 && hint !== "Elec") return { fuel: "Gas", number: d, valid: true, problem: null };
+      if (d.length > 13 && hint !== "Gas") {
+        const runs = [...new Set(Array.from({ length: d.length - 12 }, (_, i) => d.slice(i, i + 13)).filter(mpanCoreValid))];
+        if (runs.length === 1) return { fuel: "Elec", number: runs[0], valid: true, problem: null, recoveredFrom: d };
+      }
       return {
         fuel: hint,
         number: d,
@@ -33954,9 +33959,18 @@ var require_meters = __commonJS({
     }
     function mergeCheck2(meters, check) {
       const byNumber = new Map((check.meters || []).map((c) => [digits(c.supply_number).slice(-13), c]));
-      return meters.map((m) => {
-        const c = byNumber.get(String(m.number).slice(-13)) || byNumber.get(String(m.number));
+      return meters.map((orig) => {
+        let m = orig;
+        let c = byNumber.get(String(m.number).slice(-13)) || byNumber.get(String(m.number));
         const toCheck = [...m.toCheck || []];
+        if (!c && !m.valid) {
+          const fixes = (check.meters || []).map((x) => ({ x, p: parseMeterNumber(x.supply_number, m.fuel) })).filter(({ p }) => p.valid && p.fuel === m.fuel && !meters.some((o) => o.number === p.number));
+          if (fixes.length === 1) {
+            c = fixes[0].x;
+            m = { ...m, number: fixes[0].p.number, valid: true, problem: null, recoveredFrom: m.number };
+            toCheck.push("meter number");
+          }
+        }
         if (!c) return { ...m, checked: false, toCheck: [...toCheck, "meter number"] };
         const out = { ...m, checked: true };
         if (c.contract_end_date && c.contract_end_date !== m.ced) {

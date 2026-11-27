@@ -602,6 +602,10 @@ var require_meters = __commonJS({
         return { fuel: "Elec", number: d, valid: mpanCoreValid(d), problem: mpanCoreValid(d) ? null : "MPAN check digit does not match" };
       }
       if (d.length >= 6 && d.length <= 10 && hint !== "Elec") return { fuel: "Gas", number: d, valid: true, problem: null };
+      if (d.length > 13 && hint !== "Gas") {
+        const runs = [...new Set(Array.from({ length: d.length - 12 }, (_, i) => d.slice(i, i + 13)).filter(mpanCoreValid))];
+        if (runs.length === 1) return { fuel: "Elec", number: runs[0], valid: true, problem: null, recoveredFrom: d };
+      }
       return {
         fuel: hint,
         number: d,
@@ -784,9 +788,18 @@ var require_meters = __commonJS({
     }
     function mergeCheck(meters, check) {
       const byNumber = new Map((check.meters || []).map((c) => [digits(c.supply_number).slice(-13), c]));
-      return meters.map((m) => {
-        const c = byNumber.get(String(m.number).slice(-13)) || byNumber.get(String(m.number));
+      return meters.map((orig) => {
+        let m = orig;
+        let c = byNumber.get(String(m.number).slice(-13)) || byNumber.get(String(m.number));
         const toCheck = [...m.toCheck || []];
+        if (!c && !m.valid) {
+          const fixes = (check.meters || []).map((x) => ({ x, p: parseMeterNumber(x.supply_number, m.fuel) })).filter(({ p }) => p.valid && p.fuel === m.fuel && !meters.some((o) => o.number === p.number));
+          if (fixes.length === 1) {
+            c = fixes[0].x;
+            m = { ...m, number: fixes[0].p.number, valid: true, problem: null, recoveredFrom: m.number };
+            toCheck.push("meter number");
+          }
+        }
         if (!c) return { ...m, checked: false, toCheck: [...toCheck, "meter number"] };
         const out = { ...m, checked: true };
         if (c.contract_end_date && c.contract_end_date !== m.ced) {
