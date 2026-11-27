@@ -34012,7 +34012,16 @@ var require_meters = __commonJS({
       if (a.length > 3 && b.length > 3 && a.slice(0, -3) === b.slice(0, -3)) return "same area";
       return "mismatch";
     }
+    function ownerCheckNeeded(m) {
+      if (!m || m.included === false) return false;
+      if (m.otherCompanies && m.otherCompanies.length) return true;
+      if (!m.registryAddress && !m.registryPostcode) return false;
+      if (m.registryCheck === "mismatch") return true;
+      if (m.registryCheck === "match" || m.registryCheck === "same area") return false;
+      return m.companyCheck !== "match";
+    }
     module2.exports = {
+      ownerCheckNeeded,
       postcodeCheck,
       missingForPricing,
       meterTypeOf,

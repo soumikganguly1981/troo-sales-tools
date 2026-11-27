@@ -8,7 +8,7 @@ var __commonJS = (cb, mod) => function __require() {
 var require_http = __commonJS({
   "functions-src/lib/http.js"(exports2, module2) {
     var BASE = "https://api.hubapi.com";
-    async function api(method, path, body, tries = 4) {
+    async function api2(method, path, body, tries = 4) {
       const token = process.env.PRIVATE_APP_ACCESS_TOKEN;
       let last;
       for (let i = 0; i < tries; i++) {
@@ -36,14 +36,14 @@ var require_http = __commonJS({
     }
     var ok2 = (body) => ({ statusCode: 200, body });
     var fail2 = (statusCode, error) => ({ statusCode, body: { error } });
-    module2.exports = { api, ok: ok2, fail: fail2 };
+    module2.exports = { api: api2, ok: ok2, fail: fail2 };
   }
 });
 
 // functions-src/lib/crm.js
 var require_crm = __commonJS({
   "functions-src/lib/crm.js"(exports2, module2) {
-    var { api } = require_http();
+    var { api: api2 } = require_http();
     var CACHE_MS = 10 * 60 * 1e3;
     var LIVE_FALLBACK = { meters: "2-112673604", sites: "2-112673583" };
     var cache = /* @__PURE__ */ new Map();
@@ -56,7 +56,7 @@ var require_crm = __commonJS({
     }
     async function objectTypes2() {
       return cached("schemas", async () => {
-        const r = await api("GET", "/crm/v3/schemas?archived=false");
+        const r = await api2("GET", "/crm/v3/schemas?archived=false");
         if (r.status === 403) return LIVE_FALLBACK;
         if (r.status !== 200) throw new Error(`Couldn't read the custom object schemas (${r.status})`);
         const find = (re) => (r.body.results || []).find((s) => re.test(s.name) || re.test(s.labels?.plural || ""));
@@ -68,7 +68,7 @@ var require_crm = __commonJS({
     }
     async function pipelines() {
       return cached("pipelines", async () => {
-        const r = await api("GET", "/crm/v3/pipelines/deals");
+        const r = await api2("GET", "/crm/v3/pipelines/deals");
         if (r.status !== 200) throw new Error(`Couldn't read the deal pipelines (${r.status})`);
         return (r.body.results || []).map((p) => ({ id: p.id, label: p.label, stages: (p.stages || []).map((s) => ({ id: s.id, label: s.label })) }));
       });
@@ -87,21 +87,21 @@ var require_crm = __commonJS({
       const cur = p && p.stages.find((x) => x.id === String(currentStage));
       return { pipeline: String(pipelineId), stage: String(currentStage), label: cur ? cur.label : "", parked: false };
     }
-    async function associatedIds(fromType, fromId, toType) {
+    async function associatedIds2(fromType, fromId, toType) {
       const ids = [];
       let after = null;
       do {
-        const r = await api("GET", `/crm/v4/objects/${fromType}/${fromId}/associations/${toType}?limit=500${after ? `&after=${after}` : ""}`);
+        const r = await api2("GET", `/crm/v4/objects/${fromType}/${fromId}/associations/${toType}?limit=500${after ? `&after=${after}` : ""}`);
         if (r.status !== 200) break;
         ids.push(...(r.body.results || []).map((x) => String(x.toObjectId)));
         after = r.body.paging?.next?.after || null;
       } while (after);
       return ids;
     }
-    async function batchRead(type, ids, properties) {
+    async function batchRead2(type, ids, properties) {
       const out = [];
       for (let i = 0; i < ids.length; i += 100) {
-        const r = await api("POST", `/crm/v3/objects/${type}/batch/read`, { properties, inputs: ids.slice(i, i + 100).map((id) => ({ id })) });
+        const r = await api2("POST", `/crm/v3/objects/${type}/batch/read`, { properties, inputs: ids.slice(i, i + 100).map((id) => ({ id })) });
         if (r.status !== 200) throw new Error(`Couldn't read ${type} records (${r.status}): ${r.body.message || ""}`);
         out.push(...r.body.results || []);
       }
@@ -113,7 +113,7 @@ var require_crm = __commonJS({
       for (let i = 0; i < uniq.length; i += 100) {
         let after;
         do {
-          const r = await api("POST", `/crm/v3/objects/${type}/search`, {
+          const r = await api2("POST", `/crm/v3/objects/${type}/search`, {
             filterGroups: [{ filters: [{ propertyName: property, operator: "IN", values: uniq.slice(i, i + 100) }] }],
             properties,
             limit: 100,
@@ -129,7 +129,7 @@ var require_crm = __commonJS({
     async function batch(type, verb, inputs) {
       const out = [];
       for (let i = 0; i < inputs.length; i += 100) {
-        const r = await api("POST", `/crm/v3/objects/${type}/batch/${verb}`, { inputs: inputs.slice(i, i + 100) });
+        const r = await api2("POST", `/crm/v3/objects/${type}/batch/${verb}`, { inputs: inputs.slice(i, i + 100) });
         if (r.status !== 200 && r.status !== 201) throw new Error(`Couldn't ${verb} ${type} records (${r.status}): ${r.body.message || JSON.stringify(r.body).slice(0, 200)}`);
         out.push(...r.body.results || []);
       }
@@ -137,7 +137,7 @@ var require_crm = __commonJS({
     }
     async function associate(fromType, toType, pairs) {
       for (let i = 0; i < pairs.length; i += 100) {
-        const r = await api(
+        const r = await api2(
           "POST",
           `/crm/v4/associations/${fromType}/${toType}/batch/associate/default`,
           { inputs: pairs.slice(i, i + 100).map(([a, b]) => ({ from: { id: String(a) }, to: { id: String(b) } })) }
@@ -147,7 +147,7 @@ var require_crm = __commonJS({
     }
     async function unassociate(fromType, toType, pairs) {
       for (let i = 0; i < pairs.length; i += 100) {
-        const r = await api(
+        const r = await api2(
           "POST",
           `/crm/v4/associations/${fromType}/${toType}/batch/archive`,
           { inputs: pairs.slice(i, i + 100).map(([a, b]) => ({ from: { id: String(a) }, to: [{ id: String(b) }] })) }
@@ -157,19 +157,19 @@ var require_crm = __commonJS({
     }
     async function propertyOptions(type, name) {
       return cached(`opts:${type}:${name}`, async () => {
-        const r = await api("GET", `/crm/v3/properties/${type}/${name}`);
+        const r = await api2("GET", `/crm/v3/properties/${type}/${name}`);
         return r.status === 200 ? (r.body.options || []).filter((o) => !o.hidden && o.value).map((o) => o.value) : [];
       });
     }
     async function writableDealProperties() {
       return cached("dealprops", async () => {
-        const r = await api("GET", "/crm/v3/properties/deals?archived=false");
+        const r = await api2("GET", "/crm/v3/properties/deals?archived=false");
         if (r.status !== 200) return [];
         return (r.body.results || []).filter((p) => !p.modificationMetadata?.readOnlyValue && !p.calculated && !p.hidden).map((p) => p.name);
       });
     }
     async function downloadFile(fileId) {
-      const r = await api("GET", `/files/v3/files/${fileId}/signed-url?expirationSeconds=600`);
+      const r = await api2("GET", `/files/v3/files/${fileId}/signed-url?expirationSeconds=600`);
       if (r.status !== 200) throw new Error(`Couldn't open the file (${r.status}): ${r.body.message || ""}`);
       const res = await fetch(r.body.url);
       if (!res.ok) throw new Error(`Couldn't download the file (${res.status})`);
@@ -179,8 +179,8 @@ var require_crm = __commonJS({
       objectTypes: objectTypes2,
       pipelines,
       futureStage,
-      associatedIds,
-      batchRead,
+      associatedIds: associatedIds2,
+      batchRead: batchRead2,
       searchIn: searchIn2,
       batch,
       associate,
@@ -202,7 +202,7 @@ var require_suppliers = __commonJS({
 // functions-src/lib/hubdb.js
 var require_hubdb = __commonJS({
   "functions-src/lib/hubdb.js"(exports2, module2) {
-    var { api } = require_http();
+    var { api: api2 } = require_http();
     var TABLES = { products: "stip_products", bands: "stip_comms_bands", rules: "stip_rules" };
     var CACHE_MS = 5 * 60 * 1e3;
     var cache = null;
@@ -230,13 +230,13 @@ var require_hubdb = __commonJS({
       return out;
     }
     async function readTable(name) {
-      const meta = await api("GET", `/cms/v3/hubdb/tables/${name}`);
+      const meta = await api2("GET", `/cms/v3/hubdb/tables/${name}`);
       if (meta.status !== 200) throw new Error(`HubDB table ${name}: ${meta.status} ${JSON.stringify(meta.body).slice(0, 200)}`);
       const columns = meta.body.columns.map((c) => ({ name: c.name, type: c.type }));
       const rows = [];
       let after = null;
       do {
-        const r = await api("GET", `/cms/v3/hubdb/tables/${name}/rows?limit=1000${after ? `&after=${after}` : ""}`);
+        const r = await api2("GET", `/cms/v3/hubdb/tables/${name}/rows?limit=1000${after ? `&after=${after}` : ""}`);
         if (r.status !== 200) throw new Error(`HubDB rows ${name}: ${r.status}`);
         rows.push(...r.body.results.map((x) => normaliseRow(x.values, columns)));
         after = r.body.paging?.next?.after || null;
@@ -842,7 +842,16 @@ var require_meters = __commonJS({
       if (a.length > 3 && b.length > 3 && a.slice(0, -3) === b.slice(0, -3)) return "same area";
       return "mismatch";
     }
+    function ownerCheckNeeded(m) {
+      if (!m || m.included === false) return false;
+      if (m.otherCompanies && m.otherCompanies.length) return true;
+      if (!m.registryAddress && !m.registryPostcode) return false;
+      if (m.registryCheck === "mismatch") return true;
+      if (m.registryCheck === "match" || m.registryCheck === "same area") return false;
+      return m.companyCheck !== "match";
+    }
     module2.exports = {
+      ownerCheckNeeded,
       postcodeCheck: postcodeCheck2,
       missingForPricing,
       meterTypeOf,
@@ -868,7 +877,8 @@ var require_meters = __commonJS({
 
 // functions-src/mcLookup.js
 var { ok, fail } = require_http();
-var { objectTypes, searchIn } = require_crm();
+var { api } = require_http();
+var { objectTypes, searchIn, associatedIds, batchRead } = require_crm();
 var { supplierMap } = require_suppliers2();
 var { lookup } = require_registry();
 var { postcodeCheck } = require_meters();
@@ -919,6 +929,24 @@ exports.main = async (context) => {
       }
     }
     const { byCode } = await supplierMap();
+    const dealId = /^\d+$/.test(String(p.dealId || "")) ? String(p.dealId) : null;
+    const companyIds = dealId ? await associatedIds("deals", dealId, "companies") : [];
+    const companyId = companyIds[0] || null;
+    const known = [];
+    if (companyId) {
+      const c = await api("GET", `/crm/v3/objects/companies/${companyId}?properties=zip,name`);
+      if (c.body?.properties?.zip) known.push(c.body.properties.zip);
+      const siteIds = await associatedIds("companies", companyId, types.sites);
+      for (const s of await batchRead(types.sites, siteIds, ["postal_code"])) if (s.properties.postal_code) known.push(s.properties.postal_code);
+    }
+    const existingIds = [...new Set(found.map((f) => f.id))];
+    const owners = /* @__PURE__ */ new Map();
+    for (let i = 0; i < existingIds.length; i += 100) {
+      const r = await api("POST", `/crm/v4/associations/${types.meters}/companies/batch/read`, { inputs: existingIds.slice(i, i + 100).map((id) => ({ id })) });
+      for (const row of r.body?.results || []) owners.set(String(row.from?.id), (row.to || []).map((t) => String(t.toObjectId)));
+    }
+    const otherIds = [...new Set([...owners.values()].flat().filter((id) => id !== String(companyId)))];
+    const names = new Map((await batchRead("companies", otherIds, ["name"])).map((c) => [String(c.id), c.properties.name || `Company ${c.id}`]));
     const regs = await mapLimit(meters, PARALLEL, (m) => lookup(m));
     const results = [];
     for (const [i, m] of meters.entries()) {
@@ -928,7 +956,10 @@ exports.main = async (context) => {
         reg.registryName = reg.supplierName || null;
         reg.supplierName = reg.supplierCode ? byCode[String(reg.supplierCode).toUpperCase()]?.name || null : null;
         reg.postcodeCheck = postcodeCheck(reg.postcode, m.postcode || existing?.properties.postcode);
+        reg.companyCheck = !known.length ? "unknown" : known.some((k) => ["match", "same area"].includes(postcodeCheck(reg.postcode, k))) ? "match" : "elsewhere";
+        reg.knownPostcodes = [...new Set(known.map((k) => String(k).toUpperCase()))].slice(0, 5);
       }
+      const otherCompanies = existing ? (owners.get(String(existing.id)) || []).filter((id) => id !== String(companyId)).map((id) => names.get(id) || `Company ${id}`) : [];
       results.push({
         number: String(m.number),
         existing: existing ? {
@@ -942,7 +973,8 @@ exports.main = async (context) => {
           annualKwh: Number(existing.properties.aq) || Number(existing.properties.consumption__kwh_) || null,
           ldz: existing.properties.mp_gas_ldz || null,
           kva: Number(existing.properties.kva) || null,
-          voltage: existing.properties.mp_hh_voltage || null
+          voltage: existing.properties.mp_hh_voltage || null,
+          otherCompanies
         } : null,
         registry: reg
       });
