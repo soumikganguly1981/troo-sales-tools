@@ -59,6 +59,8 @@ const GROUPS = {
   ao: { name: 'accepted_option', label: 'Accepted option', displayOrder: -1 },
   mp: { name: 'matrix_pricing', label: 'Matrix pricing', displayOrder: -1 },
 };
+const LOOKUP_RESULTS = ['Matched', 'Same area', 'Matched a company address', 'Postcode mismatch, checked by rep',
+  'Address not confirmed by registry, checked by rep', 'Not found', 'Not checked'];
 const PROFILES = ['00', '01', '02', '03', '04', '05', '06', '07', '08'];
 const METER_PROPS = [
   { g: 'mcap', name: 'mcap_supplier_source', label: 'Supplier source (Meter Capture)', type: 'enumeration', fieldType: 'select', options: opts(['Registry', 'Rep override', 'Rep (no registry)']),
@@ -67,7 +69,7 @@ const METER_PROPS = [
   { g: 'mcap', name: 'mcap_registry_supplier_code', label: 'Registry supplier code', type: 'string', fieldType: 'text', description: 'Supplier code returned by Electralink or Xoserve.' },
   { g: 'mcap', name: 'mcap_registry_supplier_since', label: 'Registry supplier since', type: 'date', fieldType: 'date', description: 'Date the registry shows the current supplier started.' },
   { g: 'mcap', name: 'mcap_lookup_result', label: 'Registry check', type: 'enumeration', fieldType: 'select',
-    options: opts(['Matched', 'Same area', 'Postcode mismatch, checked by rep', 'Matched, no postcode to compare', 'Not found', 'Not checked']),
+    options: opts(LOOKUP_RESULTS),
     description: 'Electralink/Xoserve postcode compared with the bill when Meter Capture saved the meter.' },
   { g: 'mcap', name: 'mcap_rates_from', label: 'Incumbent rates from', type: 'date', fieldType: 'date', description: 'Date the incumbent rates on the bill apply from.' },
   { g: 'mcap', name: 'mcap_capture_source', label: 'Captured from', type: 'enumeration', fieldType: 'select', options: opts(['Bill', 'Photo', 'Excel', 'Manual']), description: 'How the meter was captured.' },
@@ -280,6 +282,7 @@ async function main() {
   }
 
   console.log('\nSupplier dropdowns');
+  await syncDropdown(meter.objectTypeId, 'mcap_lookup_result', 'Meter "Registry check" options', LOOKUP_RESULTS);
   await syncDropdown(meter.objectTypeId, 'mc_current_supplier', 'Meter "Incumbent supplier" (every supplier)', suppliers.names);
   await syncDropdown('deals', 'ao_supplier', 'Deal "Accepted supplier" (suppliers Troo trades with)', suppliers.tradesWith);
 
