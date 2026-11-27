@@ -54,7 +54,7 @@ def _structure(df):
     df.loc[move, "weekday"] = np.nan
     present = df[RATE_COLS].notna()
     key = present.apply(lambda r: tuple(c for c in RATE_COLS if r[c]), axis=1)
-    df.loc[e, "rate_type"] = key[e].map(STRUCTURES)
+    df.loc[e, "rate_type"] = key[e].map(lambda k: STRUCTURES.get(k))
     unknown = e & df["rate_type"].isna()
     if unknown.any():
         raise ValueError(f"{unknown.sum()} rows with an unrecognised mix of rates: {sorted(set(key[unknown]))[:5]}")
