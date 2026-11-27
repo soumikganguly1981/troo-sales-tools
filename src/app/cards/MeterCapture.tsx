@@ -106,6 +106,7 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
   const [files, setFiles] = useState<UploadedFile[]>(saved?.files ?? []);
   const [meters, setMeters] = useState<Meter[]>(saved?.meters ?? []);
   const [log, setLog] = useState<string[]>(saved?.log ?? []);
+  const [checks, setChecks] = useState<string[]>([]);
   const [problems, setProblems] = useState<string[]>(saved?.problems ?? []);
   const [busy, setBusy] = useState('');
   const [progress, setProgress] = useState(0);
@@ -149,8 +150,10 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
         const r = unwrap<{ error?: string; kind?: string; meters?: Meter[]; raw?: unknown; problems?: string[]; unclear?: string[]; log?: string }>(
           await hubspot.serverless('mc_read', { parameters: { dealId, fileId: f.id, mode: 'file' } }));
         if (r.error) throw new Error(r.error);
-        lines.push(r.log || f.name); issues.push(...(r.problems || []));
-        if ((r.unclear || []).length) issues.push(`${f.name}: hard to read: ${(r.unclear || []).join(', ')}`);
+        lines.push(r.log || f.name);
+        issues.push(...(r.problems || []).filter((p) => !/MPAN|MPRN|meter number/i.test(p))); // meter problems are judged after the second check
+        const unclear = (r.unclear || []).map((u) => String(u).split(/[:;.(]/)[0].trim()).filter((u) => u && u.length <= 60);
+        if (unclear.length) issues.push(`${f.name}: hard to read: ${[...new Set(unclear)].slice(0, 6).join(', ')}`);
         let ms = r.meters || [];
         if (r.kind === 'bill' && ms.length) {
           setBusy(`Checking ${f.name}`);
@@ -158,6 +161,7 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
           if (c.error) issues.push(`${f.name}: the second check didn't run (${c.error}); check the meter number and rates by eye`);
           else { ms = c.meters || ms; lines.push(c.log || ''); }
         }
+        issues.push(...ms.filter((m) => m.problem).map((m) => `${f.name}: ${m.number || 'a meter'}: ${m.problem}`));
         found.push(...ms.map((m) => ({ ...m, files: [f.name] })));
       } catch (e) { issues.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`); }
       setLog([...lines]); setProgress(Math.round(((i + 1) / total) * 100));
@@ -186,6 +190,18 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
         setProgress(Math.round(((k + 25) / Math.max(todo.length, 1)) * 100));
       }
       const by = new Map(found.map((x) => [x.number, x]));
+      // One line per meter, as in the mockup: what the registry said and whether its postcode matches
+      setChecks(ms.filter((m) => m.valid).map((m) => {
+        const x = by.get(m.number); const reg = x?.registry; const src = m.fuel === 'Gas' ? 'Xoserve' : 'Electralink';
+        if (!reg) return `${src} ${m.number}: not checked`;
+        if (reg.status === 'not_connected') return `${src} ${m.number}: not connected`;
+        if (reg.status === 'not_found') return `${src} ${m.number}: no record of this meter number`;
+        if (reg.status !== 'ok') return `${src} ${m.number}: lookup failed (${reg.message || 'unknown error'})`;
+        const who = reg.supplierName || reg.registryName || 'supplier not in Troo\'s list';
+        const pc = reg.postcodeCheck === 'match' ? 'matches the bill' : reg.postcodeCheck === 'same area' ? 'same area as the bill'
+          : reg.postcodeCheck === 'mismatch' ? 'DIFFERS from the bill' : reg.companyCheck === 'match' ? 'matches the company' : 'nothing to compare with';
+        return `${src} ${m.number}: ${who}${reg.supplierCode ? ` (code ${reg.supplierCode})` : ''}, postcode ${reg.postcode || 'none'} ${pc}${reg.annualKwh ? `, ${Math.round(reg.annualKwh).toLocaleString('en-GB')} kWh a year` : ''}`;
+      }));
       const next = ms.map((m) => {
         const x = by.get(m.number);
         if (!x) return m;
@@ -246,7 +262,7 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
     setBusy('');
   };
 
-  const restart = () => { setStep(0); setFiles([]); setMeters([]); setLog([]); setProblems([]); setPreview(null); setResult(null); setError(''); saveDraft([], []); };
+  const restart = () => { setChecks([]); setStep(0); setFiles([]); setMeters([]); setLog([]); setProblems([]); setPreview(null); setResult(null); setError(''); saveDraft([], []); };
   const addManual = () => {
     const digits = manual.number.replace(/\D/g, '');
     if (!digits) return;
@@ -325,6 +341,12 @@ export const MeterCapture = ({ context }: { context: CrmContext }) => {
 
       {step === 3 ? (
         <Flex direction="column" gap="sm">
+          {checks.length ? (
+            <Flex direction="column" gap="flush">
+              <Text format={{ fontWeight: 'demibold' }}>Registry check</Text>
+              {checks.map((c, i) => <Text key={i} variant="microcopy">{/DIFFERS|failed|no record|not connected/.test(c) ? '⚠' : '✓'} {c}</Text>)}
+            </Flex>
+          ) : null}
           {problems.map((p) => <Alert key={p} title="" variant="warning">{p}</Alert>)}
           {!ctx.features.electralink || !ctx.features.xoserve ? (
             <Alert title="Registry check not connected yet" variant="info">
