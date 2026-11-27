@@ -3,6 +3,14 @@
   "type": "app-function",
   "config": {
     "entrypoint": "/app/functions/mcContext.js",
-    "secretKeys": []
+    "secretKeys": [
+      "ELECTRALINK_NHH_KEY",
+      "ELECTRALINK_NHH_PASSWORD",
+      "XOSERVE_CLIENT_ID",
+      "XOSERVE_CLIENT_SECRET",
+      "XOSERVE_SCOPE",
+      "XOSERVE_TOKEN_URL",
+      "XOSERVE_API_KEY"
+    ]
   }
 }
