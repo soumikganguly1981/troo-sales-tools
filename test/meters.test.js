@@ -129,3 +129,16 @@ test('bill results to meter rows, then the second check', () => {
   const [missing] = m.mergeCheck([row], { meters: [] });
   assert.deepEqual(missing.toCheck, ['meter number']);
 });
+
+test('data completeness: what each meter still needs for pricing', () => {
+  const base = { fuel: 'Elec', number: '1012345678903', supplier: 'British Gas', ced: '2027-03-31', annualKwh: 20000 };
+  assert.deepEqual(m.missingForPricing({ ...base, profile: '03', rates: { day: 27, night: 19 } }), []);
+  assert.deepEqual(m.missingForPricing({ ...base }), ['profile class', 'meter type']);
+  assert.deepEqual(m.missingForPricing({ ...base, profileClass: '01', meterType: 'Standard' }), []);
+  assert.deepEqual(m.missingForPricing({ ...base, profile: '00' }), ['kVA', 'HH voltage']);
+  assert.deepEqual(m.missingForPricing({ ...base, profile: '00', kva: 100, voltage: 'Low voltage' }), []);
+  assert.deepEqual(m.missingForPricing({ fuel: 'Gas', number: '7465123809' }), ['current supplier', 'contract end date', 'annual consumption', 'gas zone (LDZ)']);
+  assert.deepEqual(m.missingForPricing({ fuel: 'Gas', number: '7465123809', supplier: 'Yu Energy', ced: '2027-04-30', annualKwh: 52000, ldz: 'NE' }), []);
+  assert.deepEqual(m.missingForPricing({ ...base, included: false }), []);
+  assert.equal(m.meterTypeOf({ rates: { unit: 24 } }), 'Standard');
+});

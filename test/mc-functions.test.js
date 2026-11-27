@@ -26,10 +26,11 @@ routes[`GET /crm/v3/properties/${METER}/mc_current_supplier`] = () => [200, { op
 const names = (list) => [200, { results: list.map((name) => ({ name })) }];
 routes[`GET /crm/v3/properties/${METER}`] = () => names(['meter_number', 'bottom_line_meter_number__unique_identifier_', 'top_line_meter_number', 'utility', 'contract_end_date',
   'consumption__kwh_', 'aq', 'postcode', 'meter_type', 'mc_current_supplier', 'rates_unitdaynight_pence_per_kwh', 'rates_standing_charge__pday',
-  'mcap_supplier_source', 'mcap_supplier_override_reason', 'mcap_capture_source', 'mcap_ced_to_confirm', 'mcap_captured_on', 'mcap_captured_by', 'mcap_capture_deal_id', 'mcap_rates_from']);
+  'mcap_supplier_source', 'mcap_supplier_override_reason', 'mcap_capture_source', 'mcap_ced_to_confirm', 'mcap_captured_on', 'mcap_captured_by', 'mcap_capture_deal_id', 'mcap_rates_from',
+  'mcap_missing', 'mp_profile_class', 'mp_gas_ldz', 'kva', 'mp_hh_voltage']);
 routes[`GET /crm/v3/properties/${SITE}`] = () => names(['address', 'postal_code', 'site_name']);
 routes['GET /crm/v3/properties/deals'] = () => [200, { results: ['dealname', 'pipeline', 'dealstage', 'hubspot_owner_id', 'lead_source', 'amount', 'ced_group_date',
-  'mcap_status', 'mcap_draft', 'mcap_meter_count', 'mcap_total_kwh', 'mcap_completed_on', 'mcap_split_from_deal', 'mcap_split_group'].map((name) => ({ name, modificationMetadata: { readOnlyValue: false } })) }];
+  'mcap_status', 'mcap_draft', 'mcap_meter_count', 'mcap_total_kwh', 'mcap_completed_on', 'mcap_split_from_deal', 'mcap_split_group', 'mcap_data_complete', 'mcap_data_missing'].map((name) => ({ name, modificationMetadata: { readOnlyValue: false } })) }];
 routes['GET /crm/v3/pipelines/deals'] = () => [200, { results: [{ id: 'default', label: 'Pre-Sales', stages: [{ id: 's1', label: 'LOA Signed' }, { id: 's9', label: 'Future Opportunity' }] }] }];
 routes['GET /crm/v3/objects/deals/10'] = () => [200, { properties: { dealname: 'Riverside Bakery Ltd - LOA', pipeline: 'default', dealstage: 's1', mcap_status: 'Not started' } }];
 routes['PATCH /crm/v3/objects/deals/10'] = () => [200, {}];
@@ -49,8 +50,8 @@ routes['POST /crm/v3/objects/deals/search'] = () => [200, { results: [] }];
 
 const meters = [
   { number: '1012345678903', fuel: 'Elec', valid: true, ced: '2027-03-31', address: 'Riverside Bakery, Unit 4, Mill Lane, Leeds', postcode: 'LS11 5AB', annualKwh: 86120,
-    rates: { day: 27.41, night: 19.87, standing_charge: 64.2 }, source: 'Bill', supplier: 'British Gas', included: true },
-  { number: '1098765432106', fuel: 'Elec', valid: true, ced: '2027-04-30', address: '22 Market Street, Bradford', postcode: 'BD1 1LA', annualKwh: 31400, source: 'Bill',
+    rates: { day: 27.41, night: 19.87, standing_charge: 64.2 }, source: 'Bill', supplier: 'British Gas', included: true, profile: '03' },
+  { number: '1098765432106', fuel: 'Elec', valid: true, ced: '2027-04-30', address: '22 Market Street, Bradford', postcode: 'BD1 1LA', annualKwh: 31400, source: 'Bill', profileClass: '00', kva: 80, voltage: 'Low voltage',
     supplier: 'Yu Energy', registrySupplier: 'Octopus Energy', overrideReason: 'Customer confirmed switch back', included: true },
   { number: '7465123809', fuel: 'Gas', valid: true, ced: '2027-04-30', address: '22 Market Street, Bradford', postcode: 'BD1 1LA', annualKwh: 52000, source: 'Photo', supplier: 'Yu Energy', included: true },
   { number: '1055566677785', fuel: 'Elec', valid: true, ced: '2027-11-30', address: 'Plot 9, Calder Park, Wakefield', postcode: 'WF2 7AA', annualKwh: 120300, source: 'Excel', supplier: 'E.ON Next', included: true },
@@ -85,7 +86,9 @@ test('mc_context finds the deal, company, sites and suppliers without hard-coded
   assert.equal(r.statusCode, 200, JSON.stringify(r.body));
   assert.equal(r.body.company.name, 'Riverside Bakery Ltd');
   assert.equal(r.body.sites[0].postcode, 'BD1 1LA');
-  assert.deepEqual(r.body.suppliers, ['British Gas', 'EDF Energy', 'Octopus Energy', 'Yu Energy']);
+  // the single supplier list (HubDB not set up in this mock, so the bundled copy)
+  assert.ok(r.body.suppliers.length > 100 && r.body.suppliers.includes('Yu Energy'));
+  assert.match(r.body.notes.join(' '), /built into the app/);
   assert.equal(r.body.features.billReading, false);
 });
 
@@ -153,11 +156,20 @@ test('mc_commit writes Sites, Meters, split deals and links', async () => {
   assert.equal(newDeals[0].amount, undefined, 'amount is not copied');
   assert.equal(sent('POST /crm/v4/associations/deals/notes/batch/associate/default').length, 2, 'notes copied to both split deals');
 
+  assert.equal(leeds.mp_profile_class, '03');
+  assert.equal(leeds.mcap_missing, '');
+  assert.equal(bradford.utility, 'HH');
+  assert.equal(bradford.kva, 80);
+  assert.equal(bradford.meter_type, undefined);
+  assert.equal(created.find((p) => p.meter_number === '7465123809').mcap_missing, 'gas zone (LDZ)');
+  assert.deepEqual(r.body.deals.map((d) => d.dataComplete), [true, false, false]);
   const roll = sent('PATCH /crm/v3/objects/deals/10').pop().body.properties;
   assert.equal(roll.mcap_meter_count, 2);
   assert.equal(roll.mcap_total_kwh, 117520);
   assert.equal(roll.ced_group_date, '2027-03-31');
   assert.equal(roll.mcap_status, 'Complete');
+  assert.equal(roll.mcap_data_complete, 'true');
+  assert.equal(roll.mcap_data_missing, '');
   // the Wakefield meter was on this deal and moved to the future deal
   assert.deepEqual(sent(`POST /crm/v4/associations/deals/${METER}/batch/archive`)[0].body.inputs, [{ from: { id: '10' }, to: [{ id: '501' }] }]);
   assert.match(sent('POST /crm/v3/objects/notes')[0].body.properties.hs_note_body, /No Contract records/);
