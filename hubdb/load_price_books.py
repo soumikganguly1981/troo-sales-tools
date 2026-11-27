@@ -15,14 +15,23 @@ How it's used
 Safe by default: DRY_RUN=true reads and checks files and prints what it would do, writing nothing.
 Local test without HubSpot:  python load_price_books.py --local FILE.xlsx [FILE2 ...]  (writes ./out/*.json)
 
+Supplier native formats (native_readers.py) are also accepted, as the supplier sends them:
+  <CODE>_20261124_POW_ACQ_R.csv, <CODE>_20261124_GAS_REN_P_UR.csv  flat files: these don't name the supplier,
+      so put its code from SUPPLIER_CODES in front of the name, e.g. YU_20261124_POW_ACQ_R.csv
+  rate_card_<ddmmyy>_EDFKraken.csv                                 EDF rate card (power and gas, ACQ and REN)
+  BGL ... .xlsb                                                    BG Lite quote tool (sheets Prices, Prices Elec)
+  One native file can hold several fuels and contract types; each becomes its own set of books.
+  These files carry no quote-by date: books are quotable for NATIVE_QUOTE_DAYS (default 7) after the file date.
+
 Credentials, either of:
   HUBSPOT_PERSONAL_ACCESS_KEY (+ HUBSPOT_ACCOUNT_ID): the HubSpot CLI personal access key already used for
     deploys. It is exchanged for a short-lived access token. The key needs the Files and HubDB scopes.
   HUBSPOT_PRICEBOOK_TOKEN: a private app token with the scopes files, hubdb (used if set).
 """
-import io, json, os, re, sys, time, datetime as dt
+import io, json, os, re, sys, tempfile, time, datetime as dt
 import requests
 import pandas as pd
+import native_readers
 
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() != "false"
 TOKEN = os.getenv("HUBSPOT_PRICEBOOK_TOKEN", "")
@@ -30,6 +39,8 @@ PAK = os.getenv("HUBSPOT_PERSONAL_ACCESS_KEY", "")
 ACCOUNT_ID = os.getenv("HUBSPOT_ACCOUNT_ID", "")
 BASE = "https://api.hubapi.com"
 TABLE = "price_books"
+NATIVE_QUOTE_DAYS = int(os.getenv("NATIVE_QUOTE_DAYS", "7"))
+FILE_TYPES = r"\.(xlsx|xls|xlsb|csv)$"
 FOLDERS = {"incoming": "/Price books/Incoming", "live": "/Price books/Live",
            "processed": "/Price books/Processed", "failed": "/Price books/Failed"}
 
@@ -45,7 +56,7 @@ SUPPLIER_CODES = {
 # Book columns, in the order written to each JSON book (all-empty columns are dropped per book)
 COLS = ["product", "rate_type", "profile", "band", "voltage", "exit_zone", "aq_min", "aq_max", "term",
         "start_from", "start_to", "unit", "day", "night", "ew", "sc_p_day", "kva_p_kva_month", "green",
-        "end_date", "dd", "amr", "credit_min", "credit_max", "mop"]
+        "end_date", "dd", "amr", "credit_min", "credit_max", "mop", "winter_eve", "ssc"]
 
 RATE_STRUCTURES = {"standard": "single", "daynight": "daynight", "eveningandweekend": "ew", "eveningweekendandnight": "ewn"}
 VOLTAGES = {"hvhh": "High voltage", "lvhh": "Low voltage", "lvsubhh": "LV substation", "lvnetworknoncthh": "LV network non-CT"}
@@ -274,7 +285,7 @@ def incoming_files(fid):
         if r.status_code != 200:
             raise RuntimeError(f"File search failed: {r.status_code} {r.text[:200]}")
         d = r.json()
-        out += [f for f in d.get("results", []) if re.search(r"\.(xlsx|xls|csv)$", f.get("name", "") + "." + f.get("extension", ""), re.I)]
+        out += [f for f in d.get("results", []) if re.search(FILE_TYPES, f.get("name", "") + "." + f.get("extension", ""), re.I)]
         after = d.get("paging", {}).get("next", {}).get("after")
         if not after:
             return out
@@ -324,7 +335,8 @@ def write_index(new_books, uploaded, source_label, checks_text):
         for row in existing:
             v = row.get("values", {})
             if (v.get("status") == "live" and v.get("supplier") == m["supplier"] and v.get("fuel") == m["fuel"]
-                    and str(v.get("region")) == m["region"] and (v.get("contract_type") or "ANY") == m["contract_type"]):
+                    and str(v.get("region")) == m["region"] and (v.get("contract_type") or "ANY") == m["contract_type"]
+                    and file_variant(v.get("source_file")) == file_variant(source_label)):
                 supersede.append(row["id"])
     if supersede:
         r = call("POST", f"/cms/v3/hubdb/tables/{TABLE}/rows/draft/batch/update",
@@ -349,12 +361,79 @@ def write_index(new_books, uploaded, source_label, checks_text):
     return len(set(supersede))
 
 
+# ---------------------------------------------------------------- supplier native formats
+def file_date(name):
+    """Date in a native file name: 20261124_... (yyyymmdd) or rate_card_261126_... (ddmmyy)."""
+    n = os.path.basename(name)
+    m = re.search(r"(?:^|_)(20\d{6})_", n)
+    if m:
+        return dt.datetime.strptime(m.group(1), "%Y%m%d").date()
+    m = re.search(r"_(\d{6})_", n)
+    return dt.datetime.strptime(m.group(1), "%d%m%y").date() if m else None
+
+
+def native_supplier(name):
+    """Supplier code put in front of a flat file name: YU_20261124_POW_ACQ_R.csv -> Yu Energy."""
+    m = re.match(r"^([A-Za-z]+)_\d{8}_", os.path.basename(name))
+    if not m or m.group(1).upper() not in SUPPLIER_CODES:
+        raise ValueError(f"'{name}' doesn't say which supplier it is from. Rename it with the supplier code in front, "
+                         f"e.g. YU_{os.path.basename(name)} (codes: {', '.join(sorted(SUPPLIER_CODES))})")
+    return SUPPLIER_CODES[m.group(1).upper()]
+
+
+def clean(v):
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    if hasattr(v, "item"):  # numpy scalar -> plain python
+        v = v.item()
+    return v
+
+
+def native_loads(name, data, today):
+    """Native file -> list of loads, one per fuel and contract type in the file."""
+    kind = native_readers.detect(name)
+    supplier = native_supplier(name) if kind in ("flatfile_pow", "flatfile_gas") else None
+    with tempfile.TemporaryDirectory() as d:  # pyxlsb needs a file on disk
+        path = os.path.join(d, os.path.basename(name))
+        with open(path, "wb") as fh:
+            fh.write(data)
+        df = native_readers.read(path, supplier=supplier, today=dt.date.fromisoformat(today))
+    problems = native_readers.problems(df)
+    fdate = file_date(name)
+    version = fdate.isoformat() if fdate else None
+    quote_by = ((fdate or dt.date.fromisoformat(today)) + dt.timedelta(days=NATIVE_QUOTE_DAYS)).isoformat()
+    loads = []
+    for (sup, fuel, ctype), g in df.groupby(["supplier", "fuel", "contract_type"], dropna=False):
+        rows = []
+        for r in g.to_dict("records"):
+            out = {c: clean(r.get(c)) for c in COLS}
+            out["green"] = bool(r["green"]) if clean(r.get("green")) is not None else None
+            out["term"] = int(out["term"]) if out["term"] is not None else None
+            out["region"] = str(clean(r["region"]))
+            rows.append(out)
+        errors, notes = check(rows, quote_by, today)
+        errors = problems + errors
+        unpriced = sum(1 for r in rows if r["rate_type"] in ("night_only", "ew_winter", "daynight_winter"))
+        if unpriced:
+            notes.append(f"{unpriced} rows on meter types the card can't price yet (night only / winter evening)")
+        loads.append((sup, ctype, fuel, rows, quote_by, version, version, errors, notes))
+    return loads
+
+
+def file_variant(source):
+    """ECO (green) files sit alongside the standard file for the same supplier, fuel and region."""
+    return "ECO" if re.search(r"_ECO(\.|_| |$)", str(source), re.I) else ""
+
+
 # ---------------------------------------------------------------- main
 def process(name, data, today):
+    """Returns a list of loads: (supplier, ctype, fuel, rows, quote_by, valid_from, version, errors, notes)."""
+    if native_readers.detect(name):
+        return native_loads(name, data, today)
     supplier, ctype = parse_name(name)
     fuel, rows, quote_by, valid_from, version = transform(read_frame(name, data))
     errors, notes = check(rows, quote_by, today)
-    return supplier, ctype, fuel, rows, quote_by, valid_from, version, errors, notes
+    return [(supplier, ctype, fuel, rows, quote_by, valid_from, version, errors, notes)]
 
 
 def run_local(paths):
@@ -362,16 +441,19 @@ def run_local(paths):
     os.makedirs("out", exist_ok=True)
     for p in paths:
         with open(p, "rb") as fh:
-            supplier, ctype, fuel, rows, quote_by, valid_from, version, errors, notes = process(p, fh.read(), today)
-        print(f"{os.path.basename(p)}: {supplier} {fuel} {ctype}, quote by {quote_by}, {'; '.join(notes)}")
-        if errors:
-            print("  ERRORS:", "; ".join(errors))
+            loads = process(p, fh.read(), today)
+        if any(l[7] for l in loads):
+            for l in loads:
+                if l[7]:
+                    print(f"{os.path.basename(p)}: {l[0]} {l[2]} {l[1]} ERRORS: {'; '.join(l[7])}")
             continue
-        for b in books_from(supplier, ctype, fuel, rows, quote_by, valid_from, version, os.path.basename(p)):
-            path = os.path.join("out", book_file_name(b))
-            with open(path, "w") as fh:
-                json.dump(b, fh, separators=(",", ":"))
-            print(f"  {path}: {b['meta']['rows']} rows, {os.path.getsize(path) // 1024} KB")
+        for supplier, ctype, fuel, rows, quote_by, valid_from, version, errors, notes in loads:
+            print(f"{os.path.basename(p)}: {supplier} {fuel} {ctype}, quote by {quote_by}, {'; '.join(notes)}")
+            for b in books_from(supplier, ctype, fuel, rows, quote_by, valid_from, version, os.path.basename(p)):
+                path = os.path.join("out", book_file_name(b))
+                with open(path, "w") as fh:
+                    json.dump(b, fh, separators=(",", ":"))
+                print(f"  {path}: {b['meta']['rows']} rows, {os.path.getsize(path) // 1024} KB")
 
 
 def run_hubspot():
@@ -391,25 +473,29 @@ def run_hubspot():
         name = f"{f['name']}.{f['extension']}" if f.get("extension") and not f["name"].lower().endswith(f".{f['extension'].lower()}") else f["name"]
         label = f"{name} ({f['id']})"
         try:
-            supplier, ctype, fuel, rows, quote_by, valid_from, version, errors, notes = process(name, download(f), today)
+            loads = process(name, download(f), today)
         except Exception as e:  # unreadable file: report it, move it aside, carry on
             print(f"  {label}: FAILED - {e}")
             if not DRY_RUN:
                 move(f, ids["failed"])
             continue
-        if errors:
-            print(f"  {label}: FAILED checks - {'; '.join(errors)}")
+        failed = [l for l in loads if l[7]]
+        if failed:  # all or nothing per file, so a file never half-loads
+            for l in failed:
+                print(f"  {label}: FAILED checks ({l[0]} {l[2]} {l[1]}) - {'; '.join(l[7])}")
             if not DRY_RUN:
                 move(f, ids["failed"])
             continue
-        books = books_from(supplier, ctype, fuel, rows, quote_by, valid_from, version, name)
-        print(f"  {label}: {supplier} {fuel} {ctype}, quote by {quote_by}, {len(books)} region book(s), {'; '.join(notes)}")
-        if DRY_RUN:
-            continue
-        uploaded = [upload_book(b, ids["live"]) for b in books]
-        replaced = write_index(books, uploaded, label, "; ".join(notes))
-        move(f, ids["processed"])
-        print(f"    published {len(uploaded)} book(s), superseded {replaced}")
+        for supplier, ctype, fuel, rows, quote_by, valid_from, version, errors, notes in loads:
+            books = books_from(supplier, ctype, fuel, rows, quote_by, valid_from, version, name)
+            print(f"  {label}: {supplier} {fuel} {ctype}, quote by {quote_by}, {len(books)} region book(s), {'; '.join(notes)}")
+            if DRY_RUN:
+                continue
+            uploaded = [upload_book(b, ids["live"]) for b in books]
+            replaced = write_index(books, uploaded, label, "; ".join(notes))
+            print(f"    published {len(uploaded)} book(s), superseded {replaced}")
+        if not DRY_RUN:
+            move(f, ids["processed"])
     if DRY_RUN:
         print("\nDRY RUN complete. Run with DRY_RUN=false to publish.")
 
