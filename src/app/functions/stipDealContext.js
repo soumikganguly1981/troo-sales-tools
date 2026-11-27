@@ -192,28 +192,198 @@ var require_crm = __commonJS({
   }
 });
 
+// hubdb/suppliers.csv
+var require_suppliers = __commonJS({
+  "hubdb/suppliers.csv"(exports2, module2) {
+    module2.exports = "name,trades_with,stips_group,pricebook_codes,registry_codes,aliases,tier,notes\r\n3T Power,false,,,,,,\r\nAlfred Electricity & Gas,false,,,,,,\r\nAmpower,false,,,,,,\r\nArto.Energy,false,,,,,,\r\nAvantiGas,false,,,,Avanti Gas,,\r\nAxis,false,,,,,,\r\nAxpo UK,false,,,,,,\r\nBarbican Power,false,,,,,,\r\nBBD Energy,false,,,,,,\r\nBelsize Energy,false,,,,,,\r\nBG Lite,true,bg,BGL,,British Gas Lite,,\r\nBG Plus,true,bg,,,British Gas Plus,,\r\nBGI Trading,false,,,,,,\r\nBlueGreen Energy,false,,,,,,\r\nBorough Energy,false,,,,,,\r\nBP Gas Marketing,false,,,,,,\r\nBPG Energy,false,,,,,,\r\nBristol Energy,false,,,,,,\r\nBritish Gas,true,bg,BG,,BG; British Gas Business; British Gas Trading; BGB,,\r\nBritish Gas (domestic),false,,,,,,\r\nBrook Green Supply,false,,,,,,\r\nBryt Energy,false,,,,,,\r\nBulb Energy,false,,,,,,\r\nBusiness Stream,false,,,,,,\r\nCapture Energy,false,,,,,,\r\nCastle Water,false,,,,,,\r\nCastula Energy Supply,false,,,,,,\r\nClear Business Energy,false,,,,,,\r\nClick Energy,false,,,,,,\r\nCNG,false,,,,,,\r\nCo-operative Energy,false,,,,,,\r\nCommotex,false,,,,,,\r\nConrad Energy,false,,,,,,\r\nConstellation Generation,false,,,,,,\r\nCorona Energy,true,corona,CORONA; COR,,Corona; Corona corp,,\r\nCoulomb Energy Supply,false,,,,,,\r\nCrown Gas & Power,true,crown,CROWN,,Crown,,\r\nD-ENERGi,false,,,,D-Energi,,\r\nDelta gas and power,false,,,,Delta Gas & Power,,\r\nDigital Power Energy,false,,,,,,\r\nDracus Energy Supply,false,,,,,,\r\nDrax,true,drax,DRAX,,Drax Energy Solutions; Haven Power,,\r\nDyce Energy,false,,,,,,\r\nE (Gas and Electricity),false,,,,,,\r\nE.ON Energy,false,,,,Eon; Eon Energy; E.ON,,\r\nE.ON Next,false,,,,Eon Next; E.ON Next Energy,,\r\nEcotricity,false,,,,,,\r\nEDF Energy,true,edf,EDF,,EDF; EDF Corp; EDF Energy Customers,,\r\nEdgware Energy,false,,,,,,\r\nElectricity Plus,false,,,,,,\r\nElectroRoute Energy,false,,,,,,\r\nEneco Energy Trade,false,,,,,,\r\nEngelhart CTP Energy UK,false,,,,,,\r\nEngie,true,engie,ENGIE,,Engie Power; Engie Gas,,\r\nEPG Energy,false,,,,,,\r\nEquinicity,false,,,,,,\r\nEverflow Water,false,,,,,,\r\nEvolve Energy Supply,false,,,,,,\r\nF & S Energy,false,,,,,,\r\nFarringdon Energy,false,,,,,,\r\nFlexitricity,false,,,,,,\r\nFlow Energy,false,,,,,,\r\nFoxglove Energy Supply,false,,,,,,\r\nFuse Energy Supply,false,,,,,,\r\nGo Power,false,,,,,,\r\nGolders Energy,false,,,,,,\r\nGood Energy,false,,,,,,\r\nGreen Energy UK,false,,,,,,\r\nHabitat Energy,false,,,,,,\r\nHartree Partners,false,,,,,,\r\nHighland Electricity,false,,,,,,\r\nHolborn Energy,false,,,,,,\r\nHome Energy Trading,false,,,,,,\r\nHUB energy,false,,,,,,\r\nJellyfish Energy,false,,,,,,\r\nKentucky Energy,false,,,,,,\r\nKinex,false,,,,,,\r\nLimejump Energy,false,,,,,,\r\nMA Energy,false,,,,,,\r\nMarble Power,false,,,,,,\r\nMaxen Power,false,,,,,,\r\nMongoose Energy Supply,false,,,,,,\r\nMVV Environment Services,false,,,,,,\r\nNadara Energy Trading,false,,,,,,\r\nNEAS Energy,false,,,,,,\r\nNpower,true,npower,NPOWER,,npower Business Solutions,,\r\nOctopus Energy,false,,,,,,\r\nOpal Gas,false,,,,,,\r\nOpus Energy,false,,,,Opus,,\r\nOrsted,false,,,,,,\r\nOval Energy,false,,,,,,\r\nOvo Energy,false,,,,OVO,,\r\nPE Solutions,false,,,,,,\r\nPFP Energy,false,,,,,,\r\nPlanet 9 Energy,false,,,,,,\r\nPower NI,false,,,,,,\r\nPozitive Energy,false,,,,Pozitive,,\r\nRadius Energy,false,,,,,,\r\nRegent Gas,false,,,,,,\r\nRegent Power,false,,,,,,\r\nRobin Hood Energy,false,,,,,,\r\nRuby Energy,false,,,,,,\r\nScope Energy Solutions,false,,,,,,\r\nScottish Power,false,,,,ScottishPower,,\r\nSEFE Energy,true,,SEFE,,Sefe; Gazprom Energy,,\r\nShell Energy,true,shell,SHELL,,Shell; Shell Energy Business,,\r\nSINQ Power,false,,,,,,\r\nSmart Pay Energy,false,,,,,,\r\nSmartest Energy,true,smartest,,,Smartest; SmartestEnergy,,\r\nSmartest Energy Business,true,smartest,SMARTEST; SEB,,Smartest MM; Smartest SME; Smartest corp,,\r\nSo Energy,false,,,,,,\r\nSource for Business,false,,,,,,\r\nSQE Energy,false,,,,,,\r\nSquare1 Energy,false,,,,,,\r\nSqueaky Clean Energy,false,,,,,,\r\nSSE,false,,,,,,\r\nSSE Airtricity,false,,,,,,\r\nStatkraft Markets,false,,,,,,\r\nSwitch Business Gas & Power,false,,,,,,\r\nSymbio Energy,false,,,,,,\r\nTesla Energy Ventures,false,,,,,,\r\nThe Water Retail Company,false,,,,,,\r\nTotalEnergies,true,total,TOTAL; TGP,,Total; Total Gas & Power; TotalEnergies Gas & Power,,\r\nToucan Energy,false,,,,,,\r\nTrue Energy,false,,,,,,\r\nUC Energy,false,,,,,,\r\nUK Power Reserve,false,,,,,,\r\nUnicom,false,,,,,,\r\nUnify Energy,false,,,,,,\r\nUnited Gas & Power,false,,,,,,\r\nURE Energy,false,,,,,,\r\nUtilita Energy,false,,,,Utilita,,\r\nUtility Warehouse,false,,,,,,\r\nValda Energy,true,,VALDA,,Valda,,\r\nVattenfall Energy Trading,false,,,,,,\r\nVersa Energy,false,,,,,,\r\nVoltx Power,false,,,,,,\r\nWater Plus,false,,,,,,\r\nWater2Business,false,,,,,,\r\nWave,false,,,,,,\r\nXLN,false,,,,,,\r\nYorkshire Gas & Power,false,,,,YGP,,\r\nYu Energy,true,,YU,,Yu energy; YU Energy Retail,,\r\nZeusa Energy,false,,,,,,\r\n";
+  }
+});
+
+// functions-src/lib/hubdb.js
+var require_hubdb = __commonJS({
+  "functions-src/lib/hubdb.js"(exports2, module2) {
+    var { api: api2 } = require_http();
+    var TABLES = { products: "stip_products", bands: "stip_comms_bands", rules: "stip_rules" };
+    var CACHE_MS = 5 * 60 * 1e3;
+    var cache = null;
+    var pad = (x) => String(x).padStart(2, "0");
+    function normaliseValue(v) {
+      if (v === null || v === void 0 || v === "") return null;
+      if (typeof v === "object" && !Array.isArray(v) && "name" in v) return v.name;
+      return v;
+    }
+    function normaliseRow(values, columns) {
+      const out = {};
+      for (const col of columns) {
+        let v = normaliseValue(values[col.name]);
+        if (v === null) {
+          out[col.name] = null;
+          continue;
+        }
+        if (col.type === "DATE") {
+          const d = new Date(Number(v));
+          v = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+        } else if (col.type === "BOOLEAN") v = v === true || v === 1 || v === "1" || v === "true";
+        else if (col.type === "NUMBER") v = Number(v);
+        out[col.name] = v;
+      }
+      return out;
+    }
+    async function readTable(name) {
+      const meta = await api2("GET", `/cms/v3/hubdb/tables/${name}`);
+      if (meta.status !== 200) throw new Error(`HubDB table ${name}: ${meta.status} ${JSON.stringify(meta.body).slice(0, 200)}`);
+      const columns = meta.body.columns.map((c) => ({ name: c.name, type: c.type }));
+      const rows = [];
+      let after = null;
+      do {
+        const r = await api2("GET", `/cms/v3/hubdb/tables/${name}/rows?limit=1000${after ? `&after=${after}` : ""}`);
+        if (r.status !== 200) throw new Error(`HubDB rows ${name}: ${r.status}`);
+        rows.push(...r.body.results.map((x) => normaliseRow(x.values, columns)));
+        after = r.body.paging?.next?.after || null;
+      } while (after);
+      return rows;
+    }
+    async function loadStipulations() {
+      if (cache && Date.now() - cache.at < CACHE_MS) return cache.tables;
+      const [products, bands, rules] = await Promise.all(Object.values(TABLES).map(readTable));
+      const months = products.map((p) => p.stip_month).filter(Boolean).sort();
+      const tables = { products, bands, rules, stipMonth: months[months.length - 1] || null };
+      cache = { at: Date.now(), tables };
+      return tables;
+    }
+    module2.exports = { loadStipulations, normaliseRow, readTable };
+  }
+});
+
+// functions-src/lib/suppliers.js
+var require_suppliers2 = __commonJS({
+  "functions-src/lib/suppliers.js"(exports2, module2) {
+    var CSV_TEXT;
+    try {
+      CSV_TEXT = require_suppliers();
+    } catch {
+      CSV_TEXT = require("fs").readFileSync(require("path").join(__dirname, "../../hubdb/suppliers.csv"), "utf8");
+    }
+    var TABLE = "supplier_code_map";
+    var CACHE_MS = 10 * 60 * 1e3;
+    var cache = null;
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let q = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (q) {
+          if (c === '"' && text[i + 1] === '"') {
+            cell += '"';
+            i++;
+          } else if (c === '"') q = false;
+          else cell += c;
+          continue;
+        }
+        if (c === '"') q = true;
+        else if (c === ",") {
+          row.push(cell);
+          cell = "";
+        } else if (c === "\n" || c === "\r") {
+          if (c === "\r" && text[i + 1] === "\n") i++;
+          row.push(cell);
+          rows.push(row);
+          row = [];
+          cell = "";
+        } else cell += c;
+      }
+      if (cell || row.length) {
+        row.push(cell);
+        rows.push(row);
+      }
+      const [head, ...body] = rows.filter((r) => r.some((x) => x.trim()));
+      return body.map((r) => Object.fromEntries(head.map((h, i) => [h.trim(), (r[i] || "").trim()])));
+    }
+    var list = (v) => String(v || "").split(/[;,]/).map((s) => s.trim()).filter(Boolean);
+    function normalise(r) {
+      return {
+        name: String(r.name || "").trim(),
+        tradesWith: r.trades_with === true || r.trades_with === 1 || String(r.trades_with).toLowerCase() === "true",
+        stipsGroup: String(r.stips_group || "").trim() || null,
+        pricebookCodes: list(r.pricebook_codes).map((c) => c.toUpperCase()),
+        registryCodes: list(r.registry_codes || r.code).map((c) => c.toUpperCase()),
+        aliases: list(r.aliases),
+        tier: String(r.tier || "").trim() || null
+      };
+    }
+    var bundled = () => parseCsv(CSV_TEXT).map(normalise).filter((r) => r.name);
+    var key = (s) => String(s || "").toLowerCase().replace(/\b(ltd|limited|plc|uk|business|customers|trading|retail|supply|the)\b/g, "").replace(/[^a-z0-9]/g, "");
+    function index(rows) {
+      const exact = /* @__PURE__ */ new Map();
+      const keyed = /* @__PURE__ */ new Map();
+      const byRegistry = {};
+      const byPricebook = {};
+      for (const r of rows) {
+        for (const n of [r.name, ...r.aliases]) {
+          if (!exact.has(n.toLowerCase())) exact.set(n.toLowerCase(), r);
+          if (key(n) && !keyed.has(key(n))) keyed.set(key(n), r);
+        }
+        for (const c of r.registryCodes) byRegistry[c] = r;
+        for (const c of r.pricebookCodes) byPricebook[c] = r;
+      }
+      const resolve = (text) => {
+        if (!text) return null;
+        const t = String(text).trim();
+        const k = key(t);
+        if (exact.has(t.toLowerCase())) return exact.get(t.toLowerCase());
+        if (k && keyed.has(k)) return keyed.get(k);
+        if (k.length < 3) return null;
+        let best = null;
+        for (const [kk, r] of keyed) if (kk.length >= 3 && k.startsWith(kk) && (!best || kk.length > best[0].length)) best = [kk, r];
+        return best ? best[1] : null;
+      };
+      return { resolve, byRegistry, byPricebook };
+    }
+    function build(rows, source) {
+      const ix = index(rows);
+      const names = [...new Set(rows.map((r) => r.name))].sort((a, b) => a.localeCompare(b));
+      return {
+        rows,
+        source,
+        names,
+        tradesWith: names.filter((n) => rows.find((r) => r.name === n).tradesWith),
+        resolve: ix.resolve,
+        fromRegistryCode: (c) => ix.byRegistry[String(c || "").toUpperCase()] || null,
+        fromPricebookCode: (c) => ix.byPricebook[String(c || "").toUpperCase()] || null,
+        stipsGroup: (text) => (ix.resolve(text) || {}).stipsGroup || ""
+      };
+    }
+    async function loadSuppliers2() {
+      if (cache && Date.now() - cache.at < CACHE_MS) return cache.value;
+      let value;
+      try {
+        const { readTable } = require_hubdb();
+        const rows = (await readTable(TABLE)).map(normalise).filter((r) => r.name);
+        value = rows.length ? build(rows, "hubdb") : build(bundled(), "bundled");
+      } catch {
+        value = build(bundled(), "bundled");
+      }
+      cache = { at: Date.now(), value };
+      return value;
+    }
+    async function supplierMap() {
+      const s = await loadSuppliers2();
+      const byCode = {};
+      for (const r of s.rows) for (const c of r.registryCodes) byCode[c] = { name: r.name };
+      return { names: s.names, tradesWith: s.tradesWith, byCode, resolve: s.resolve, source: s.source };
+    }
+    module2.exports = { TABLE, loadSuppliers: loadSuppliers2, supplierMap, parseCsv, bundledSuppliers: () => build(bundled(), "bundled") };
+  }
+});
+
 // functions-src/stipDealContext.js
 var { api, ok, fail } = require_http();
 var { objectTypes } = require_crm();
+var { loadSuppliers } = require_suppliers2();
 var ELEC = /* @__PURE__ */ new Set(["HH", "NHH", "Half Hourly Electric", "Non Half Hourly Electric"]);
 var HH = /* @__PURE__ */ new Set(["HH", "Half Hourly Electric"]);
-var GROUPS = [
-  [/^(bg|bgb|bg lite|bg plus|british gas)\b/i, "bg"],
-  [/^corona/i, "corona"],
-  [/^crown/i, "crown"],
-  [/^drax/i, "drax"],
-  [/^edf/i, "edf"],
-  [/^engie/i, "engie"],
-  [/^npower/i, "npower"],
-  [/^shell/i, "shell"],
-  [/^smartest/i, "smartest"],
-  [/^total/i, "total"]
-];
-var groupOf = (s) => {
-  if (!s) return "";
-  const g = GROUPS.find(([re]) => re.test(String(s).trim()));
-  return g ? g[1] : "";
-};
 var addDay = (iso) => {
   const d = /* @__PURE__ */ new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + 1);
@@ -222,6 +392,7 @@ var addDay = (iso) => {
 exports.main = async (context) => {
   try {
     const METER = (await objectTypes()).meters;
+    const groupOf = (await loadSuppliers()).stipsGroup;
     const dealId = String(context.parameters && context.parameters.dealId || "");
     if (!/^\d+$/.test(dealId)) return fail(400, "Missing deal ID");
     const deal = await api("GET", `/crm/v3/objects/deals/${dealId}?properties=dealname,ced_group_date,current_supplier,utility_primary,est_comms_supplier,est_comms_product,est_comms_total,est_comms_calculated_at`);

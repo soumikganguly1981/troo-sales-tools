@@ -359,7 +359,7 @@ var require_matrix = __commonJS({
       const bottom = String(p.meter_number || p.bottom_line_meter_number__unique_identifier_ || "").replace(/\D/g, "");
       const top = String(p.top_line_meter_number || "").replace(/\D/g, "");
       const region = fuel === "G" ? (p.mp_gas_ldz || "").toUpperCase() || null : bottom.length >= 2 ? bottom.slice(0, 2) : null;
-      const profile = fuel === "E" && top.length >= 2 ? top.slice(0, 2) : null;
+      const profile = fuel === "E" ? top.length >= 2 ? top.slice(0, 2) : p.mp_profile_class || null : null;
       const rateType = fuel === "HH" ? "hh" : fuel === "G" ? "single" : RATE_TYPES[p.meter_type] || "single";
       const aq = Number(p.aq) || Number(p.consumption__kwh_) || 0;
       const led = p.latest_end_date ? String(p.latest_end_date).slice(0, 10) : null;
@@ -563,7 +563,8 @@ var PROPS = [
   "mp_hh_voltage",
   "mp_metering",
   "mp_gas_ldz",
-  "mp_gas_exit_zone"
+  "mp_gas_exit_zone",
+  "mp_profile_class"
 ];
 var addDay = (iso) => {
   const d = /* @__PURE__ */ new Date(`${iso}T00:00:00Z`);
@@ -575,10 +576,15 @@ exports.main = async (context) => {
     const METER = (await objectTypes()).meters;
     const dealId = String(context.parameters && context.parameters.dealId || "");
     if (!/^\d+$/.test(dealId)) return fail(400, "Missing deal ID");
-    const deal = await api("GET", `/crm/v3/objects/deals/${dealId}?properties=dealname,ced_group_date`);
+    const deal = await api("GET", `/crm/v3/objects/deals/${dealId}?properties=dealname,ced_group_date,req_contract_lengths,req_start_date,req_start_type`);
     if (deal.status !== 200) return fail(deal.status, `Couldn't read the deal (${deal.status})`);
     const dp = deal.body.properties || {};
     const ced = dp.ced_group_date ? String(dp.ced_group_date).slice(0, 10) : null;
+    const requirements = {
+      lengths: String(dp.req_contract_lengths || "").split(";").map(Number).filter((n) => n > 0).sort((a, b) => a - b),
+      startDate: dp.req_start_date ? String(dp.req_start_date).slice(0, 10) : null,
+      changeOfTenancy: dp.req_start_type === "Change of tenancy"
+    };
     const ids = [];
     let after = null;
     do {
@@ -604,7 +610,7 @@ exports.main = async (context) => {
     if (!priceable.length) notes.push("No electricity or gas meters are linked to this deal.");
     if (!books.length && !booksError) notes.push("No price books are loaded yet. The Pricing team adds them to the Price books folder.");
     const stipulated = [...new Set(books.map((b) => b.supplier))].filter((s) => FAMILY[s]);
-    return ok({ dealName: dp.dealname || "", ced, meters: priceable, books, stipulated, booksError, notes });
+    return ok({ dealName: dp.dealname || "", ced, meters: priceable, books, stipulated, booksError, notes, requirements });
   } catch (e) {
     return fail(500, `Couldn't read the deal: ${e.message}`);
   }

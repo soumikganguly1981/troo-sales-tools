@@ -33413,6 +33413,13 @@ var require_crm = __commonJS({
   }
 });
 
+// hubdb/suppliers.csv
+var require_suppliers = __commonJS({
+  "hubdb/suppliers.csv"(exports2, module2) {
+    module2.exports = "name,trades_with,stips_group,pricebook_codes,registry_codes,aliases,tier,notes\r\n3T Power,false,,,,,,\r\nAlfred Electricity & Gas,false,,,,,,\r\nAmpower,false,,,,,,\r\nArto.Energy,false,,,,,,\r\nAvantiGas,false,,,,Avanti Gas,,\r\nAxis,false,,,,,,\r\nAxpo UK,false,,,,,,\r\nBarbican Power,false,,,,,,\r\nBBD Energy,false,,,,,,\r\nBelsize Energy,false,,,,,,\r\nBG Lite,true,bg,BGL,,British Gas Lite,,\r\nBG Plus,true,bg,,,British Gas Plus,,\r\nBGI Trading,false,,,,,,\r\nBlueGreen Energy,false,,,,,,\r\nBorough Energy,false,,,,,,\r\nBP Gas Marketing,false,,,,,,\r\nBPG Energy,false,,,,,,\r\nBristol Energy,false,,,,,,\r\nBritish Gas,true,bg,BG,,BG; British Gas Business; British Gas Trading; BGB,,\r\nBritish Gas (domestic),false,,,,,,\r\nBrook Green Supply,false,,,,,,\r\nBryt Energy,false,,,,,,\r\nBulb Energy,false,,,,,,\r\nBusiness Stream,false,,,,,,\r\nCapture Energy,false,,,,,,\r\nCastle Water,false,,,,,,\r\nCastula Energy Supply,false,,,,,,\r\nClear Business Energy,false,,,,,,\r\nClick Energy,false,,,,,,\r\nCNG,false,,,,,,\r\nCo-operative Energy,false,,,,,,\r\nCommotex,false,,,,,,\r\nConrad Energy,false,,,,,,\r\nConstellation Generation,false,,,,,,\r\nCorona Energy,true,corona,CORONA; COR,,Corona; Corona corp,,\r\nCoulomb Energy Supply,false,,,,,,\r\nCrown Gas & Power,true,crown,CROWN,,Crown,,\r\nD-ENERGi,false,,,,D-Energi,,\r\nDelta gas and power,false,,,,Delta Gas & Power,,\r\nDigital Power Energy,false,,,,,,\r\nDracus Energy Supply,false,,,,,,\r\nDrax,true,drax,DRAX,,Drax Energy Solutions; Haven Power,,\r\nDyce Energy,false,,,,,,\r\nE (Gas and Electricity),false,,,,,,\r\nE.ON Energy,false,,,,Eon; Eon Energy; E.ON,,\r\nE.ON Next,false,,,,Eon Next; E.ON Next Energy,,\r\nEcotricity,false,,,,,,\r\nEDF Energy,true,edf,EDF,,EDF; EDF Corp; EDF Energy Customers,,\r\nEdgware Energy,false,,,,,,\r\nElectricity Plus,false,,,,,,\r\nElectroRoute Energy,false,,,,,,\r\nEneco Energy Trade,false,,,,,,\r\nEngelhart CTP Energy UK,false,,,,,,\r\nEngie,true,engie,ENGIE,,Engie Power; Engie Gas,,\r\nEPG Energy,false,,,,,,\r\nEquinicity,false,,,,,,\r\nEverflow Water,false,,,,,,\r\nEvolve Energy Supply,false,,,,,,\r\nF & S Energy,false,,,,,,\r\nFarringdon Energy,false,,,,,,\r\nFlexitricity,false,,,,,,\r\nFlow Energy,false,,,,,,\r\nFoxglove Energy Supply,false,,,,,,\r\nFuse Energy Supply,false,,,,,,\r\nGo Power,false,,,,,,\r\nGolders Energy,false,,,,,,\r\nGood Energy,false,,,,,,\r\nGreen Energy UK,false,,,,,,\r\nHabitat Energy,false,,,,,,\r\nHartree Partners,false,,,,,,\r\nHighland Electricity,false,,,,,,\r\nHolborn Energy,false,,,,,,\r\nHome Energy Trading,false,,,,,,\r\nHUB energy,false,,,,,,\r\nJellyfish Energy,false,,,,,,\r\nKentucky Energy,false,,,,,,\r\nKinex,false,,,,,,\r\nLimejump Energy,false,,,,,,\r\nMA Energy,false,,,,,,\r\nMarble Power,false,,,,,,\r\nMaxen Power,false,,,,,,\r\nMongoose Energy Supply,false,,,,,,\r\nMVV Environment Services,false,,,,,,\r\nNadara Energy Trading,false,,,,,,\r\nNEAS Energy,false,,,,,,\r\nNpower,true,npower,NPOWER,,npower Business Solutions,,\r\nOctopus Energy,false,,,,,,\r\nOpal Gas,false,,,,,,\r\nOpus Energy,false,,,,Opus,,\r\nOrsted,false,,,,,,\r\nOval Energy,false,,,,,,\r\nOvo Energy,false,,,,OVO,,\r\nPE Solutions,false,,,,,,\r\nPFP Energy,false,,,,,,\r\nPlanet 9 Energy,false,,,,,,\r\nPower NI,false,,,,,,\r\nPozitive Energy,false,,,,Pozitive,,\r\nRadius Energy,false,,,,,,\r\nRegent Gas,false,,,,,,\r\nRegent Power,false,,,,,,\r\nRobin Hood Energy,false,,,,,,\r\nRuby Energy,false,,,,,,\r\nScope Energy Solutions,false,,,,,,\r\nScottish Power,false,,,,ScottishPower,,\r\nSEFE Energy,true,,SEFE,,Sefe; Gazprom Energy,,\r\nShell Energy,true,shell,SHELL,,Shell; Shell Energy Business,,\r\nSINQ Power,false,,,,,,\r\nSmart Pay Energy,false,,,,,,\r\nSmartest Energy,true,smartest,,,Smartest; SmartestEnergy,,\r\nSmartest Energy Business,true,smartest,SMARTEST; SEB,,Smartest MM; Smartest SME; Smartest corp,,\r\nSo Energy,false,,,,,,\r\nSource for Business,false,,,,,,\r\nSQE Energy,false,,,,,,\r\nSquare1 Energy,false,,,,,,\r\nSqueaky Clean Energy,false,,,,,,\r\nSSE,false,,,,,,\r\nSSE Airtricity,false,,,,,,\r\nStatkraft Markets,false,,,,,,\r\nSwitch Business Gas & Power,false,,,,,,\r\nSymbio Energy,false,,,,,,\r\nTesla Energy Ventures,false,,,,,,\r\nThe Water Retail Company,false,,,,,,\r\nTotalEnergies,true,total,TOTAL; TGP,,Total; Total Gas & Power; TotalEnergies Gas & Power,,\r\nToucan Energy,false,,,,,,\r\nTrue Energy,false,,,,,,\r\nUC Energy,false,,,,,,\r\nUK Power Reserve,false,,,,,,\r\nUnicom,false,,,,,,\r\nUnify Energy,false,,,,,,\r\nUnited Gas & Power,false,,,,,,\r\nURE Energy,false,,,,,,\r\nUtilita Energy,false,,,,Utilita,,\r\nUtility Warehouse,false,,,,,,\r\nValda Energy,true,,VALDA,,Valda,,\r\nVattenfall Energy Trading,false,,,,,,\r\nVersa Energy,false,,,,,,\r\nVoltx Power,false,,,,,,\r\nWater Plus,false,,,,,,\r\nWater2Business,false,,,,,,\r\nWave,false,,,,,,\r\nXLN,false,,,,,,\r\nYorkshire Gas & Power,false,,,,YGP,,\r\nYu Energy,true,,YU,,Yu energy; YU Energy Retail,,\r\nZeusa Energy,false,,,,,,\r\n";
+  }
+});
+
 // functions-src/lib/hubdb.js
 var require_hubdb = __commonJS({
   "functions-src/lib/hubdb.js"(exports2, module2) {
@@ -33470,38 +33477,125 @@ var require_hubdb = __commonJS({
 });
 
 // functions-src/lib/suppliers.js
-var require_suppliers = __commonJS({
+var require_suppliers2 = __commonJS({
   "functions-src/lib/suppliers.js"(exports2, module2) {
-    var { readTable } = require_hubdb();
-    var { propertyOptions } = require_crm();
+    var CSV_TEXT;
+    try {
+      CSV_TEXT = require_suppliers();
+    } catch {
+      CSV_TEXT = require("fs").readFileSync(require("path").join(__dirname, "../../hubdb/suppliers.csv"), "utf8");
+    }
     var TABLE = "supplier_code_map";
+    var CACHE_MS = 10 * 60 * 1e3;
     var cache = null;
-    async function supplierMap2(meterType) {
-      if (cache && Date.now() - cache.at < 10 * 60 * 1e3) return cache.value;
-      let rows = [];
-      let source = "hubdb";
-      try {
-        rows = await readTable(TABLE);
-      } catch {
-        source = "property";
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let q = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (q) {
+          if (c === '"' && text[i + 1] === '"') {
+            cell += '"';
+            i++;
+          } else if (c === '"') q = false;
+          else cell += c;
+          continue;
+        }
+        if (c === '"') q = true;
+        else if (c === ",") {
+          row.push(cell);
+          cell = "";
+        } else if (c === "\n" || c === "\r") {
+          if (c === "\r" && text[i + 1] === "\n") i++;
+          row.push(cell);
+          rows.push(row);
+          row = [];
+          cell = "";
+        } else cell += c;
       }
-      const options = meterType ? await propertyOptions(meterType, "mc_current_supplier") : [];
-      const byCode = {};
+      if (cell || row.length) {
+        row.push(cell);
+        rows.push(row);
+      }
+      const [head, ...body] = rows.filter((r) => r.some((x) => x.trim()));
+      return body.map((r) => Object.fromEntries(head.map((h, i) => [h.trim(), (r[i] || "").trim()])));
+    }
+    var list = (v) => String(v || "").split(/[;,]/).map((s) => s.trim()).filter(Boolean);
+    function normalise(r) {
+      return {
+        name: String(r.name || "").trim(),
+        tradesWith: r.trades_with === true || r.trades_with === 1 || String(r.trades_with).toLowerCase() === "true",
+        stipsGroup: String(r.stips_group || "").trim() || null,
+        pricebookCodes: list(r.pricebook_codes).map((c) => c.toUpperCase()),
+        registryCodes: list(r.registry_codes || r.code).map((c) => c.toUpperCase()),
+        aliases: list(r.aliases),
+        tier: String(r.tier || "").trim() || null
+      };
+    }
+    var bundled = () => parseCsv(CSV_TEXT).map(normalise).filter((r) => r.name);
+    var key = (s) => String(s || "").toLowerCase().replace(/\b(ltd|limited|plc|uk|business|customers|trading|retail|supply|the)\b/g, "").replace(/[^a-z0-9]/g, "");
+    function index(rows) {
+      const exact = /* @__PURE__ */ new Map();
+      const keyed = /* @__PURE__ */ new Map();
+      const byRegistry = {};
+      const byPricebook = {};
       for (const r of rows) {
-        if (!r.code || !r.name) continue;
-        for (const c of String(r.code).split(/[,\s]+/).filter(Boolean)) byCode[c.toUpperCase()] = { name: r.name, fuel: r.fuel || null };
+        for (const n of [r.name, ...r.aliases]) {
+          if (!exact.has(n.toLowerCase())) exact.set(n.toLowerCase(), r);
+          if (key(n) && !keyed.has(key(n))) keyed.set(key(n), r);
+        }
+        for (const c of r.registryCodes) byRegistry[c] = r;
+        for (const c of r.pricebookCodes) byPricebook[c] = r;
       }
-      let names = rows.filter((r) => r.name && r.trades_with !== false).map((r) => r.name);
-      if (!names.length) {
-        names = options;
-        source = "property";
+      const resolve = (text) => {
+        if (!text) return null;
+        const t = String(text).trim();
+        const k = key(t);
+        if (exact.has(t.toLowerCase())) return exact.get(t.toLowerCase());
+        if (k && keyed.has(k)) return keyed.get(k);
+        if (k.length < 3) return null;
+        let best = null;
+        for (const [kk, r] of keyed) if (kk.length >= 3 && k.startsWith(kk) && (!best || kk.length > best[0].length)) best = [kk, r];
+        return best ? best[1] : null;
+      };
+      return { resolve, byRegistry, byPricebook };
+    }
+    function build(rows, source) {
+      const ix = index(rows);
+      const names = [...new Set(rows.map((r) => r.name))].sort((a, b) => a.localeCompare(b));
+      return {
+        rows,
+        source,
+        names,
+        tradesWith: names.filter((n) => rows.find((r) => r.name === n).tradesWith),
+        resolve: ix.resolve,
+        fromRegistryCode: (c) => ix.byRegistry[String(c || "").toUpperCase()] || null,
+        fromPricebookCode: (c) => ix.byPricebook[String(c || "").toUpperCase()] || null,
+        stipsGroup: (text) => (ix.resolve(text) || {}).stipsGroup || ""
+      };
+    }
+    async function loadSuppliers() {
+      if (cache && Date.now() - cache.at < CACHE_MS) return cache.value;
+      let value;
+      try {
+        const { readTable } = require_hubdb();
+        const rows = (await readTable(TABLE)).map(normalise).filter((r) => r.name);
+        value = rows.length ? build(rows, "hubdb") : build(bundled(), "bundled");
+      } catch {
+        value = build(bundled(), "bundled");
       }
-      if (options.length) names = names.filter((n) => options.includes(n));
-      const value = { names: [...new Set(names)].sort((a, b) => a.localeCompare(b)), byCode, source };
       cache = { at: Date.now(), value };
       return value;
     }
-    module2.exports = { supplierMap: supplierMap2, TABLE };
+    async function supplierMap2() {
+      const s = await loadSuppliers();
+      const byCode = {};
+      for (const r of s.rows) for (const c of r.registryCodes) byCode[c] = { name: r.name };
+      return { names: s.names, tradesWith: s.tradesWith, byCode, resolve: s.resolve, source: s.source };
+    }
+    module2.exports = { TABLE, loadSuppliers, supplierMap: supplierMap2, parseCsv, bundledSuppliers: () => build(bundled(), "bundled") };
   }
 });
 
@@ -33817,8 +33911,8 @@ var require_meters = __commonJS({
       if (f(r.day)) return `D ${f(r.day)}`;
       return "";
     }
-    function billMeters2(result, supplierNames, source) {
-      const supplier = result.supplier ? matchSupplier(result.supplier, supplierNames || []) || null : null;
+    function billMeters2(result, suppliers, source) {
+      const supplier = !result.supplier ? null : typeof suppliers === "function" ? (suppliers(result.supplier) || {}).name || null : matchSupplier(result.supplier, suppliers || []) || null;
       return (result.meters || []).map((x) => {
         const meter = parseMeterNumber(x.supply_number, x.fuel);
         const printed = parseDate(x.contract_end_text);
@@ -33866,7 +33960,35 @@ var require_meters = __commonJS({
         return out;
       });
     }
+    var isHH = (m) => (m.profile || m.profileClass) === "00";
+    function meterTypeOf(m) {
+      if (m.meterType) return m.meterType;
+      const r = m.rates || {};
+      if (r.day != null && r.night != null) return "Economy 7";
+      if (r.unit != null) return "Standard";
+      return null;
+    }
+    function missingForPricing(m) {
+      if (m.included === false) return [];
+      const out = [];
+      if (!m.supplier) out.push("current supplier");
+      if (!m.ced) out.push("contract end date");
+      if (!(Number(m.annualKwh) > 0)) out.push("annual consumption");
+      if (m.fuel === "Gas") {
+        if (!m.ldz) out.push("gas zone (LDZ)");
+      } else {
+        if (!(m.profile || m.profileClass)) out.push("profile class");
+        if (isHH(m)) {
+          if (!(Number(m.kva) > 0)) out.push("kVA");
+          if (!m.voltage) out.push("HH voltage");
+        } else if (!meterTypeOf(m)) out.push("meter type");
+      }
+      return out;
+    }
     module2.exports = {
+      missingForPricing,
+      meterTypeOf,
+      isHH,
       billMeters: billMeters2,
       mergeCheck: mergeCheck2,
       mpanCoreValid,
@@ -33890,7 +34012,7 @@ var require_meters = __commonJS({
 var XLSX = require_xlsx();
 var { api, ok, fail } = require_http();
 var { objectTypes, downloadFile } = require_crm();
-var { supplierMap } = require_suppliers();
+var { supplierMap } = require_suppliers2();
 var billreader = require_billreader();
 var { parseMeterRows, billMeters, mergeCheck } = require_meters();
 var SHEETS = ["xlsx", "xls", "csv"];
@@ -33925,12 +34047,12 @@ exports.main = async (context) => {
     if (!billreader.MEDIA[file.extension]) return fail(400, `${file.name}: use PDF or a photo for bills, or the Excel template for a meter list`);
     if (!billreader.configured()) return fail(400, "Bill reading is not switched on yet (the ANTHROPIC_API_KEY secret is missing). Use the Excel template for now.");
     const types = await objectTypes();
-    const { names } = await supplierMap(types.meters);
+    const { resolve } = await supplierMap();
     const source = file.extension === "pdf" ? "Bill" : "Photo";
     if (p.mode === "check") {
       if (!p.first || !Array.isArray(p.first.meters)) return fail(400, "Missing the first read to check");
       const check = await billreader.checkBill(file, p.first);
-      const meters2 = mergeCheck(billMeters(p.first, names, source), check.result);
+      const meters2 = mergeCheck(billMeters(p.first, resolve, source), check.result);
       const changed = meters2.filter((m) => m.toCheck.length).length;
       return ok({
         kind: "bill",
@@ -33941,7 +34063,7 @@ exports.main = async (context) => {
     }
     const read = await billreader.readBill(file);
     if (read.result.is_energy_bill === false) return ok({ kind: "bill", name: file.name, meters: [], raw: read.result, problems: [`${file.name} doesn't look like an energy bill`], log: `${file.name}: not an energy bill` });
-    const meters = billMeters(read.result, names, source);
+    const meters = billMeters(read.result, resolve, source);
     const problems = meters.filter((m) => m.problem).map((m) => `${file.name}: ${m.number || "a meter"}: ${m.problem}`);
     if (!meters.length) problems.push(`${file.name}: no meter numbers found`);
     return ok({
