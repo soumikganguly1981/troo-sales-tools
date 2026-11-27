@@ -26,6 +26,10 @@ const only = (props, allowed, dropped) => Object.fromEntries(Object.entries(prop
   if (allowed.has(k)) return true; dropped.add(k); return false;
 }));
 
+const LOOKUP = { match: 'Matched', 'same area': 'Same area', mismatch: 'Postcode mismatch, checked by rep', missing: 'Matched, no postcode to compare' };
+const lookupResult = (m) => (m.registryCheck ? LOOKUP[m.registryCheck] || null
+  : /no record/.test(m.registryNote || '') ? 'Not found' : 'Not checked');
+
 function meterProps(m, ctx) {
   const r = m.rates || {};
   const meterType = meterTypeOf(m);
@@ -54,6 +58,7 @@ function meterProps(m, ctx) {
     mcap_supplier_override_reason: source === 'Rep override' ? m.overrideReason : null,
     mcap_registry_supplier_code: m.registryCode,
     mcap_registry_supplier_since: m.registrySince,
+    mcap_lookup_result: lookupResult(m),
     mcap_capture_source: m.source,
     mcap_ced_to_confirm: m.ced ? (m.cedDayMissing ? 'true' : 'false') : 'true',
     mcap_captured_on: ctx.today,
@@ -75,6 +80,8 @@ exports.main = async (context) => {
     if (bad.length) return fail(400, `Fix or untick these meter numbers first: ${bad.map((m) => m.number).join(', ')}`);
     const noReason = all.filter((m) => m.included !== false && m.registrySupplier && m.supplier !== m.registrySupplier && String(m.overrideReason || '').trim().length < 4);
     if (noReason.length) return fail(400, `Give a reason for changing the registry supplier on ${noReason.map((m) => m.number).join(', ')}`);
+    const unchecked = all.filter((m) => m.included !== false && m.registryCheck === 'mismatch' && !m.mismatchChecked);
+    if (unchecked.length) return fail(400, `The registry has a different address for ${unchecked.map((m) => m.number).join(', ')}: check the meter number first`);
 
     const today = /^\d{4}-\d{2}-\d{2}$/.test(p.today || '') ? p.today : londonToday();
     const by = String(p.by || '').slice(0, 100);
